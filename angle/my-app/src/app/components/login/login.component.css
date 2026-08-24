@@ -1,0 +1,91 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--page-bg);
+}
+
+.brand-bar {
+  background: linear-gradient(to bottom, #4a6bab, var(--chrome-blue));
+  border-bottom: 1px solid var(--chrome-blue-dark);
+  padding: 10px 20px;
+  color: #fff;
+}
+
+.brand-logo {
+  font-size: 22px;
+  font-weight: bold;
+  margin-right: 12px;
+}
+
+.brand-tagline {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.login-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 60px;
+  padding: 60px 20px;
+  flex-wrap: wrap;
+}
+
+.pitch-col {
+  max-width: 320px;
+  padding-top: 10px;
+}
+
+.pitch-col h1 {
+  font-size: 32px;
+  color: var(--chrome-blue-dark);
+}
+
+.pitch-col p {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.login-box {
+  width: 280px;
+}
+
+.field-row {
+  margin-bottom: 8px;
+}
+
+.field-row input {
+  width: 100%;
+  padding: 7px 8px;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 7px 0;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.error-msg {
+  color: #c0392b;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.footer-strip {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 10px;
+  border-top: 1px solid var(--panel-border);
+}

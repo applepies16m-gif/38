@@ -1,0 +1,82 @@
+<div class="admin-page">
+
+  <div class="top-bar">
+    <span class="brand-logo">griffchat</span>
+    <span class="admin-title">Admin Control Panel</span>
+    <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
+  </div>
+
+  <div class="admin-body">
+
+    <div class="panel">
+      <div class="panel-header">Users</div>
+      <div class="panel-body">
+        <table class="list-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Display Name</th>
+              <th>Role</th>
+              <th>Groups</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let u of users">
+              <td>{{ u.username }}</td>
+              <td>{{ u.displayName }}</td>
+              <td>
+                <span class="badge" [ngClass]="u.role === 'user' ? 'badge-user' : 'badge-admin'">
+                  {{ u.role }}
+                </span>
+              </td>
+              <td>{{ groupNames(u) }}</td>
+              <td>
+                <span class="badge" [ngClass]="u.online ? 'badge-online' : 'badge-offline'">
+                  {{ u.online ? 'online' : 'offline' }}
+                </span>
+              </td>
+              <td><a (click)="removeUser(u)">remove</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Request New User</div>
+      <div class="panel-body form-row">
+        <input type="text" placeholder="Username" [(ngModel)]="newUsername" />
+        <input type="text" placeholder="Display name (optional)" [(ngModel)]="newDisplayName" />
+        <button class="btn btn-primary" (click)="requestNewUser()">Submit Request</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Groups & Channels</div>
+      <div class="panel-body">
+        <table class="list-table">
+          <thead>
+            <tr>
+              <th>Group</th>
+              <th>Channels</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let g of groups">
+              <td>{{ g.title }}</td>
+              <td>{{ g.channelIds.length }} channel(s)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="form-row" style="margin-top: 8px;">
+          <input type="text" placeholder="New group name" [(ngModel)]="newGroupName" />
+          <button class="btn" (click)="createGroup()">Create Group</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

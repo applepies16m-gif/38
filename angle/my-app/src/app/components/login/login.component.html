@@ -1,0 +1,45 @@
+<div class="login-page">
+
+  <div class="brand-bar">
+    <span class="brand-logo">griffchat</span>
+    <span class="brand-tagline">connect with your classmates.</span>
+  </div>
+
+  <div class="login-wrap">
+
+    <div class="pitch-col">
+      <h1>griffchat</h1>
+      <p>
+        griffchat helps you keep in touch with study groups and
+        classmates through text and image messages, in real time.
+      </p>
+    </div>
+
+    <div class="panel login-box">
+      <div class="panel-body">
+        <form (ngSubmit)="onLogin()">
+          <div class="field-row">
+            <input type="text" placeholder="Username" name="username" [(ngModel)]="username" />
+          </div>
+          <div class="field-row">
+            <input type="password" placeholder="Password" name="password" [(ngModel)]="password" />
+          </div>
+
+          <div *ngIf="errorMsg" class="error-msg">{{ errorMsg }}</div>
+
+          <button type="submit" class="btn btn-primary login-btn">Log In</button>
+
+          <div class="hint">
+            tip: log in as <b>admin</b> to preview the admin view.
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer-strip">
+    griffchat &middot; 3813ICT Phase 1 Prototype
+  </div>
+
+</div>

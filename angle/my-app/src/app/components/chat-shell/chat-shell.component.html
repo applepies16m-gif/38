@@ -1,0 +1,68 @@
+<div class="shell">
+
+  <div class="top-bar">
+    <span class="brand-logo">griffchat</span>
+    <div class="top-bar-right">
+      <span class="welcome-text">welcome, {{ currentUsername }}</span>
+      <span class="badge" [ngClass]="currentRole === 'user' ? 'badge-user' : 'badge-admin'">
+        {{ currentRole === 'user' ? 'member' : 'admin' }}
+      </span>
+      <a *ngIf="currentRole === 'super_admin'" routerLink="/admin">Admin Panel</a>
+      <a *ngIf="currentRole === 'group_admin' || currentRole === 'super_admin'" routerLink="/group-admin">Manage Group</a>
+      <a (click)="logout()">Log Out</a>
+    </div>
+  </div>
+
+  <div class="body-columns">
+
+    <div class="col-left">
+      <div class="panel" *ngFor="let g of groups">
+        <div class="panel-header">{{ g.title }}</div>
+        <div class="panel-body no-pad">
+          <div
+            *ngFor="let ch of channelsForGroup(g.id)"
+            class="channel-row"
+            [class.active]="ch.id === activeChannelId"
+            (click)="selectChannel(ch.id)"
+          >
+            # {{ ch.name }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-center panel">
+      <div class="panel-header">
+        # {{ activeChannel?.name || 'select a channel' }}
+      </div>
+      <div class="thread">
+        <div class="msg-row" *ngFor="let m of visibleMessages">
+          <span class="msg-sender">{{ m.senderName }}</span>
+          <span class="msg-time">{{ m.timestamp }}</span>
+          <div class="msg-text">{{ m.text }}</div>
+        </div>
+      </div>
+      <div class="composer">
+        <input
+          type="text"
+          placeholder="Write a message..."
+          [(ngModel)]="draftMessage"
+          (keyup.enter)="sendMessage()"
+        />
+        <button class="btn" title="Attach image (Phase 2)">Image</button>
+        <button class="btn btn-primary" (click)="sendMessage()">Send</button>
+      </div>
+    </div>
+
+    <div class="col-right panel">
+      <div class="panel-header">Online Now</div>
+      <div class="panel-body no-pad">
+        <div class="user-row" *ngFor="let u of onlineUsers">
+          <span class="dot" [class.online]="u.online"></span>
+          {{ u.displayName }}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

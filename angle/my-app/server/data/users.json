@@ -1,0 +1,24 @@
+[
+  {
+    "id": "u1",
+    "groupIds": [],
+    "username": "jordan",
+    "isSystemBanned": false,
+    "displayName": "Jordan",
+    "bannedFromGroupIds": [],
+    "role": "user",
+    "online": false,
+    "email": "jordan@student.griffith.edu.au"
+  },
+  {
+    "id": "u2",
+    "username": "tony",
+    "displayName": "supper",
+    "email": "tony@student.griffith.edu.au",
+    "role": "user",
+    "online": false,
+    "groupIds": [],
+    "bannedFromGroupIds": [],
+    "isSystemBanned": false
+  }
+]
