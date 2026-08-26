@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   username: string;
-  password: string;
+  password?: string;
   displayName: string;
   email: string;
   role: 'super_admin' | 'group_admin' | 'user';
