@@ -20,14 +20,7 @@ export class GroupRequestComponent implements OnInit {
       this.router.navigate(['/admin'], { queryParams: this.route.snapshot.queryParams });
     }
   }
-@Component({
-  selector: 'app-group-request',
-  standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
-  templateUrl: './group-request.component.html',
-  styleUrl: './group-request.component.css'
-})
-export class GroupRequestComponent {
+
   proposedTitle = '';
   proposedDescription = '';
   submitted = false;

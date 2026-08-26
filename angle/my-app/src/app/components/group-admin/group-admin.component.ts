@@ -22,6 +22,16 @@ export class GroupAdminComponent implements OnInit {
     }
   }
 
+  // Mock: this admin manages g1 only, for the prototype.
+  group: Group = {
+    id: 'g1',
+    title: '2802ICT Study Group',
+    description: 'Study group for 2802ICT students working through search algorithms and CSP.',
+    ageLimit: 0,
+    adminIds: ['u3'],
+    channelIds: ['c1', 'c2']
+  };
+
   members: User[] = [
     { id: 'u1', username: 'anthony', displayName: 'Anthony', email: 'anthony@student.griffith.edu.au', role: 'user', online: true, groupIds: ['g1', 'g2'], bannedFromGroupIds: [], isSystemBanned: false },
     { id: 'u2', username: 'maria', displayName: 'Maria', email: 'maria@student.griffith.edu.au', role: 'user', online: true, groupIds: ['g1'], bannedFromGroupIds: [], isSystemBanned: false }
