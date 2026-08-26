@@ -38,3 +38,12 @@ export interface GroupCreationRequest {
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
 }
+export interface BanRequest {
+  id: string;
+  requestedBy: string;   // userId of the member requesting the ban
+  targetUserId: string;  // userId being reported
+  groupId: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+}

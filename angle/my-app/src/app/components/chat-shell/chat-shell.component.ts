@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Group, Channel } from '../../models/group.model';
 import { User } from '../../models/user.model';
 import { ChatMessage, SystemMessage } from '../../models/message.model';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-chat-shell',
@@ -46,11 +47,20 @@ groups: Group[] = [
   activeChannelId = 'c1';
   draftMessage = '';
 
-  constructor(private route: ActivatedRoute, private router: Router) {}
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private authService: AuthService
+  ) {}
 
   hasGroups = true;
 
 ngOnInit(): void {
+  if (!this.authService.isLoggedIn()) {
+    this.router.navigate(['/login']);
+    return;
+  }
+
   const role = this.route.snapshot.queryParams['role'];
   if (role === 'super_admin') {
     this.router.navigate(['/admin'], { queryParams: this.route.snapshot.queryParams });
@@ -63,7 +73,6 @@ ngOnInit(): void {
     this.hasGroups = params['hasGroups'] !== 'false';
   });
 }
-
   get activeChannel(): Channel | undefined {
     return this.channels.find(c => c.id === this.activeChannelId);
   }
@@ -102,6 +111,12 @@ isSystemMessage(item: ChatMessage | SystemMessage): item is SystemMessage {
   }
 
   logout(): void {
+    this.authService.logout();
     this.router.navigate(['/login']);
+  }
+    requestToJoin(): void {
+    // Phase 1 stub — real join-request flow (browse groups, submit
+    // request, Group Admin approval) lands in Phase 2.
+    alert('Join request sent (mock) — a Group Admin will review it in Phase 2.');
   }
 }

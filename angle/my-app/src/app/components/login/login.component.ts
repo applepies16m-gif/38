@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { UserService } from '../../services/user.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-login',
@@ -16,7 +17,11 @@ export class LoginComponent {
   password = '';
   errorMsg = '';
 
-  constructor(private router: Router, private userService: UserService) {}
+  constructor(
+    private router: Router,
+    private userService: UserService,
+    private authService: AuthService
+  ) {}
 
   onLogin(): void {
     if (!this.username || !this.password) {
@@ -26,6 +31,7 @@ export class LoginComponent {
 
     this.userService.login(this.username, this.password).subscribe({
       next: (user) => {
+        this.authService.login();
         const destination = user.role === 'super_admin' ? '/admin' : '/chat';
         this.router.navigate([destination], {
           queryParams: {

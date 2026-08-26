@@ -1,91 +1,45 @@
-<div class="ga-page">
+<div class="admin-page">
 
   <div class="top-bar">
     <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
-    <span class="ga-title">Group Admin — {{ group.title }}</span>
+    <span class="admin-title">Admin Control Panel</span>
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
 
-  <div class="ga-body">
+  <div class="admin-body">
 
-    <!-- Join requests -->
     <div class="panel">
-      <div class="panel-header">Pending Join Requests</div>
-      <div class="panel-body">
-        <table class="list-table" *ngIf="joinRequests.length; else noJoinReq">
-          <thead>
-            <tr><th>User</th><th>Status</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let jr of joinRequests">
-              <td>{{ requesterNames[jr.userId] || jr.userId }}</td>
-              <td>
-                <span class="badge" [ngClass]="jr.status === 'pending' ? 'badge-user' : (jr.status === 'approved' ? 'badge-online' : 'badge-admin')">
-                  {{ jr.status }}
-                </span>
-                <span *ngIf="jr.rejectionReason" class="reason-text"> — {{ jr.rejectionReason }}</span>
-              </td>
-              <td *ngIf="jr.status === 'pending'">
-                <a (click)="approveJoinRequest(jr)">approve</a> &middot;
-                <a (click)="rejectJoinRequest(jr)">reject</a>
-              </td>
-              <td *ngIf="jr.status !== 'pending'"></td>
-            </tr>
-          </tbody>
-        </table>
-        <ng-template #noJoinReq><p class="empty-text">No pending join requests.</p></ng-template>
-      </div>
-    </div>
-
-    <!-- Room requests -->
-    <div class="panel">
-      <div class="panel-header">Pending Room Requests</div>
-      <div class="panel-body">
-        <table class="list-table" *ngIf="roomRequests.length; else noRoomReq">
-          <thead>
-            <tr><th>Room Name</th><th>Requested By</th><th>Status</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let rr of roomRequests">
-              <td># {{ rr.roomName }}</td>
-              <td>{{ requesterNames[rr.requestedBy] || rr.requestedBy }}</td>
-              <td>
-                <span class="badge" [ngClass]="rr.status === 'pending' ? 'badge-user' : (rr.status === 'approved' ? 'badge-online' : 'badge-admin')">
-                  {{ rr.status }}
-                </span>
-              </td>
-              <td *ngIf="rr.status === 'pending'">
-                <a (click)="approveRoomRequest(rr)">approve</a> &middot;
-                <a (click)="rejectRoomRequest(rr)">reject</a>
-              </td>
-              <td *ngIf="rr.status !== 'pending'"></td>
-            </tr>
-          </tbody>
-        </table>
-        <ng-template #noRoomReq><p class="empty-text">No pending room requests.</p></ng-template>
-      </div>
-    </div>
-
-    <!-- Members -->
-    <div class="panel">
-      <div class="panel-header">Members</div>
+      <div class="panel-header">Users</div>
       <div class="panel-body">
         <table class="list-table">
           <thead>
-            <tr><th>Name</th><th>Role</th><th></th></tr>
+            <tr>
+              <th>Username</th>
+              <th>Display Name</th>
+              <th>Role</th>
+              <th>Groups</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let m of members">
-              <td>{{ m.displayName }}</td>
+            <tr *ngFor="let u of users">
+              <td>{{ u.username }}</td>
+              <td>{{ u.displayName }}</td>
               <td>
-                <span class="badge" [ngClass]="isAdmin(m) ? 'badge-admin' : 'badge-user'">
-                  {{ isAdmin(m) ? 'group admin' : 'member' }}
+                <span class="badge" [ngClass]="u.role === 'user' ? 'badge-user' : 'badge-admin'">
+                  {{ u.role }}
+                </span>
+              </td>
+              <td>{{ groupNames(u) }}</td>
+              <td>
+                <span class="badge" [ngClass]="u.online ? 'badge-online' : 'badge-offline'">
+                  {{ u.online ? 'online' : 'offline' }}
                 </span>
               </td>
               <td>
-                <a *ngIf="!isAdmin(m)" (click)="promoteToAdmin(m)">promote</a>
-                <a *ngIf="isAdmin(m)" (click)="demoteAdmin(m)">demote</a> &middot;
-                <a (click)="banMember(m)">ban</a>
+                <a (click)="removeUser(u)">remove</a> &middot;
+                <a (click)="banFromSystem(u)">ban from system</a>
               </td>
             </tr>
           </tbody>
@@ -93,20 +47,79 @@
       </div>
     </div>
 
-    <!-- Group settings -->
     <div class="panel">
-      <div class="panel-header">Group Settings</div>
-      <div class="panel-body form-grid">
-        <label>Title (max 30 chars)</label>
-        <input type="text" [(ngModel)]="group.title" maxlength="30" />
+      <div class="panel-header">Request New User</div>
+      <div class="panel-body form-row">
+        <input type="text" placeholder="Username" [(ngModel)]="newUsername" />
+        <input type="text" placeholder="Display name (optional)" [(ngModel)]="newDisplayName" />
+        <button class="btn btn-primary" (click)="requestNewUser()">Submit Request</button>
+      </div>
+    </div>
 
-        <label>Description (max 250 chars)</label>
-        <textarea [(ngModel)]="group.description" maxlength="250" rows="3"></textarea>
+    <div class="panel">
+      <div class="panel-header">Groups & Channels</div>
+      <div class="panel-body">
+        <table class="list-table">
+          <thead>
+            <tr>
+              <th>Group</th>
+              <th>Channels</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let g of groups">
+              <td>{{ g.title }}</td>
+              <td>{{ g.channelIds.length }} channel(s)</td>
+            </tr>
+          </tbody>
+        </table>
 
-        <label>Age Limit (0 = none)</label>
-        <input type="text" [(ngModel)]="group.ageLimit" />
+        <div class="form-row" style="margin-top: 8px;">
+          <input type="text" placeholder="New group name" [(ngModel)]="newGroupName" />
+          <button class="btn" (click)="createGroup()">Create Group</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+  <div class="panel-header">Pending Group Requests</div>
+  <div class="panel-body">
+    <table class="list-table" *ngIf="groupRequests.length; else noGroupReq">
+      <thead>
+        <tr><th>Proposed Title</th><th>Requested By</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let gr of groupRequests">
+          <td>{{ gr.proposedTitle }}</td>
+          <td>{{ gr.requestedBy }}</td>
+          <td>
+            <span class="badge" [ngClass]="gr.status === 'pending' ? 'badge-user' : (gr.status === 'approved' ? 'badge-online' : 'badge-admin')">
+              {{ gr.status }}
+            </span>
+            <span *ngIf="gr.rejectionReason" class="reason-text"> — {{ gr.rejectionReason }}</span>
+          </td>
+          <td *ngIf="gr.status === 'pending'">
+            <a (click)="approveGroupRequest(gr)">approve</a> &middot;
+            <a (click)="rejectGroupRequest(gr)">reject</a>
+          </td>
+          <td *ngIf="gr.status !== 'pending'"></td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #noGroupReq><p class="empty-text">No pending group requests.</p></ng-template>
+  </div>
+</div>
 
-        <button class="btn btn-primary" (click)="saveGroupSettings()">Save Settings</button>
+    <div class="panel">
+      <div class="panel-header">Ban Requests</div>
+      <div class="panel-body">
+        <p class="empty-text">Ban request review will be available here in Phase 2.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Password Recovery Requests</div>
+      <div class="panel-body">
+        <p class="empty-text">Password recovery requests will be available here in Phase 2.</p>
       </div>
     </div>
 

@@ -6,6 +6,7 @@ import { User } from '../../models/user.model';
 import { Group, GroupCreationRequest } from '../../models/group.model';
 import { UserService } from '../../services/user.service';
 import { GroupService } from '../../services/group.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-admin-panel',
@@ -32,10 +33,16 @@ export class AdminPanelComponent implements OnInit {
     private groupService: GroupService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
+    if (!this.authService.isLoggedIn()) {
+      this.router.navigate(['/login']);
+      return;
+    }
+
     const role = this.route.snapshot.queryParams['role'];
     if (role !== 'super_admin') {
       this.router.navigate(['/chat'], { queryParams: this.route.snapshot.queryParams });

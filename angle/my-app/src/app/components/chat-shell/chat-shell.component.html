@@ -58,6 +58,7 @@
     <div class="msg-row" *ngIf="!isSystemMessage(item)">
       <span class="msg-sender">{{ item.senderName }}</span>
       <span class="msg-time">{{ item.timestamp }}</span>
+      <a class="report-link" title="Report user (not functional)">report</a>
       <div class="msg-text">{{ item.text }}</div>
       <img *ngIf="item.imageUrl" [src]="item.imageUrl" class="msg-image" />
     </div>

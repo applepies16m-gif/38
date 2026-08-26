@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { User } from '../../models/user.model';
-import { Group, JoinRequest, RoomRequest } from '../../models/group.model';
+import { Group, JoinRequest, RoomRequest, BanRequest } from '../../models/group.model';
 
 @Component({
   selector: 'app-group-admin',
@@ -46,7 +46,11 @@ export class GroupAdminComponent implements OnInit {
     { id: 'rr1', requestedBy: 'u1', groupId: 'g1', roomName: 'exam-prep', status: 'pending' }
   ];
 
-  // Just for displaying a name against a join/room request's userId,
+  banRequests: BanRequest[] = [
+    { id: 'br1', requestedBy: 'u2', targetUserId: 'u1', groupId: 'g1', reason: 'Repeated off-topic spam in #general.', status: 'pending' }
+  ];
+
+  // Just for displaying a name against a join/room/ban request's userId,
   // since real users aren't loaded from a service yet.
   requesterNames: Record<string, string> = {
     u4: 'Jordan',
@@ -84,6 +88,23 @@ export class GroupAdminComponent implements OnInit {
 
   rejectRoomRequest(req: RoomRequest): void {
     const reason = prompt('Reason for rejecting this room request?');
+    if (reason === null) {
+      return;
+    }
+    req.status = 'rejected';
+    req.rejectionReason = reason;
+  }
+
+  approveBanRequest(req: BanRequest): void {
+    req.status = 'approved';
+    const target = this.members.find(m => m.id === req.targetUserId);
+    if (target) {
+      this.banMember(target);
+    }
+  }
+
+  rejectBanRequest(req: BanRequest): void {
+    const reason = prompt('Reason for rejecting this ban request?');
     if (reason === null) {
       return;
     }
