@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Group, Channel } from '../../models/group.model';
 import { User } from '../../models/user.model';
-import { ChatMessage } from '../../models/message.model';
+import { ChatMessage, SystemMessage } from '../../models/message.model';
 
 @Component({
   selector: 'app-chat-shell',
@@ -38,26 +38,39 @@ groups: Group[] = [
     { id: 'm1', channelId: 'c1', senderId: 'u2', senderName: 'Maria', text: 'has anyone started the maze solver yet?', timestamp: '10:02 AM' },
     { id: 'm2', channelId: 'c1', senderId: 'u1', senderName: 'Anthony', text: 'yeah, working on IDA* right now', timestamp: '10:04 AM' }
   ];
+  systemMessages: SystemMessage[] = [
+  { id: 's1', channelId: 'c1', type: 'join', username: 'Maria', timestamp: '10:01 AM' },
+  { id: 's2', channelId: 'c1', type: 'join', username: 'Anthony', timestamp: '10:03 AM' }
+];
 
   activeChannelId = 'c1';
   draftMessage = '';
 
   constructor(private route: ActivatedRoute, private router: Router) {}
 
-  ngOnInit(): void {
-    this.route.queryParams.subscribe(params => {
-      this.currentUsername = params['user'] || 'guest';
-      this.currentRole = params['role'] || 'user';
-    });
-  }
+  hasGroups = true;
+
+ngOnInit(): void {
+  this.route.queryParams.subscribe(params => {
+    this.currentUsername = params['user'] || 'guest';
+    this.currentRole = params['role'] || 'user';
+    this.hasGroups = params['hasGroups'] !== 'false';
+  });
+}
 
   get activeChannel(): Channel | undefined {
     return this.channels.find(c => c.id === this.activeChannelId);
   }
 
-  get visibleMessages(): ChatMessage[] {
-    return this.messages.filter(m => m.channelId === this.activeChannelId);
-  }
+ get threadItems(): (ChatMessage | SystemMessage)[] {
+  const chatItems = this.messages.filter(m => m.channelId === this.activeChannelId);
+  const systemItems = this.systemMessages.filter(s => s.channelId === this.activeChannelId);
+  return [...chatItems, ...systemItems].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+isSystemMessage(item: ChatMessage | SystemMessage): item is SystemMessage {
+  return 'type' in item;
+}
 
   channelsForGroup(groupId: string): Channel[] {
     return this.channels.filter(c => c.groupId === groupId);

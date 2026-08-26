@@ -1,0 +1,83 @@
+.gr-page {
+  min-height: 100vh;
+  background: var(--page-bg);
+}
+
+.top-bar {
+  background: linear-gradient(to bottom, #4a6bab, var(--chrome-blue));
+  border-bottom: 1px solid var(--chrome-blue-dark);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+}
+
+.gr-title {
+  font-size: 12px;
+  opacity: 0.9;
+  flex: 1;
+}
+
+.back-link {
+  color: #dbe4f5;
+  font-size: 11px;
+}
+
+.back-link:hover {
+  color: #fff;
+}
+
+.gr-body {
+  max-width: 620px;
+  margin: 14px auto;
+  padding: 0 10px;
+}
+
+.helper-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-grid label {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.form-grid input,
+.form-grid textarea {
+  width: 100%;
+  font-family: Verdana, Geneva, Arial, sans-serif;
+}
+
+.form-grid button {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+.success-text {
+  color: #2b9d3a;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.empty-text {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.reason-text {
+  color: var(--text-muted);
+  font-size: 11px;
+}

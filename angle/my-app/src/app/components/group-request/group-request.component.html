@@ -1,0 +1,56 @@
+<div class="gr-page">
+
+  <div class="top-bar">
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <span class="gr-title">Request a New Group</span>
+    <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
+  </div>
+
+  <div class="gr-body">
+
+    <div class="panel">
+      <div class="panel-header">New Group Request</div>
+      <div class="panel-body form-grid">
+
+        <p class="helper-text">
+          Requesting a group sends it to the Super Admin for approval.
+          If approved, you'll automatically become that group's admin.
+        </p>
+
+        <label>Group Title ({{ titleCharsLeft }} characters left)</label>
+        <input type="text" [(ngModel)]="proposedTitle" maxlength="30" placeholder="e.g. Board Games Club" />
+
+        <label>Description ({{ descriptionCharsLeft }} characters left)</label>
+        <textarea [(ngModel)]="proposedDescription" maxlength="250" rows="3" placeholder="What's this group about?"></textarea>
+
+        <div *ngIf="submitted" class="success-text">Request submitted — you'll be notified once it's reviewed.</div>
+
+        <button class="btn btn-primary" (click)="submitRequest()">Submit Request</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Your Requests</div>
+      <div class="panel-body">
+        <table class="list-table" *ngIf="myRequests.length; else noRequests">
+          <thead>
+            <tr><th>Title</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of myRequests">
+              <td>{{ r.proposedTitle }}</td>
+              <td>
+                <span class="badge" [ngClass]="r.status === 'pending' ? 'badge-user' : (r.status === 'approved' ? 'badge-online' : 'badge-admin')">
+                  {{ r.status }}
+                </span>
+                <span *ngIf="r.rejectionReason" class="reason-text"> — {{ r.rejectionReason }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #noRequests><p class="empty-text">You haven't requested any groups yet.</p></ng-template>
+      </div>
+    </div>
+
+  </div>
+</div>

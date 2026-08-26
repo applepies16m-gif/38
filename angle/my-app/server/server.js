@@ -36,7 +36,19 @@ app.get('/api/users', (req, res) => {
   const users = readJsonFile(USERS_FILE);
   res.json(users);
 });
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  const users = readJsonFile(USERS_FILE);
+  const user = users.find(u => u.username.toLowerCase() === (username || '').toLowerCase());
 
+  if (!user || user.password !== password) {
+    return res.status(401).json({ message: 'Invalid username or password.' });
+  }
+
+  // Never send the password back to the client.
+  const { password: _pw, ...safeUser } = user;
+  res.json(safeUser);
+});
 app.post('/api/users', (req, res) => {
   const users = readJsonFile(USERS_FILE);
   const newUser = {

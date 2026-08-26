@@ -1,0 +1,69 @@
+<div class="profile-page">
+
+  <div class="top-bar">
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <span class="profile-title">My Profile</span>
+    <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
+  </div>
+
+  <div class="profile-body">
+
+    <div class="panel">
+      <div class="panel-header">Profile Picture</div>
+      <div class="panel-body pic-row">
+        <img
+          [src]="profilePicUrl || 'https://placehold.co/80x80/3b5998/ffffff?text=?'"
+          alt="Profile picture"
+          class="profile-pic"
+        />
+        <div>
+          <input type="file" accept="image/png, image/jpeg, image/gif" (change)="onPictureSelected($event)" />
+          <p class="helper-text">PNG, JPEG or GIF. Not uploaded to the server yet in Phase 1.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Account Details</div>
+      <div class="panel-body form-grid">
+
+        <label>Username</label>
+        <input type="text" [(ngModel)]="username" />
+
+        <label>Display Name</label>
+        <input type="text" [(ngModel)]="displayName" />
+
+        <label>Email (cannot be changed)</label>
+        <input type="text" [value]="email" disabled />
+
+        <label>About Me</label>
+        <textarea [(ngModel)]="bio" rows="3" placeholder="Say a little about yourself..."></textarea>
+
+        <div *ngIf="saved" class="success-text">Profile saved (mock).</div>
+
+        <button class="btn btn-primary" (click)="saveProfile()">Save Changes</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Change Password</div>
+      <div class="panel-body form-grid">
+
+        <label>Current Password</label>
+        <input type="password" [(ngModel)]="passwordCurrent" />
+
+        <label>New Password</label>
+        <input type="password" [(ngModel)]="passwordNew" />
+        <span class="hint-inline">min 8 characters, 1 uppercase letter</span>
+
+        <label>Confirm New Password</label>
+        <input type="password" [(ngModel)]="passwordConfirm" />
+
+        <div *ngIf="passwordMsg" class="password-msg">{{ passwordMsg }}</div>
+
+        <button class="btn" (click)="changePassword()">Update Password</button>
+      </div>
+    </div>
+
+  </div>
+</div>

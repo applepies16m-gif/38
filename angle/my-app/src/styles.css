@@ -8,6 +8,8 @@
   --text-dark: #1c1e21;
   --text-muted: #616770;
   --online-green: #2b9d3a;
+  --accent-pink: #ff69b4;
+  --accent-purple: #6c5b9e;
 }
 
 body {
@@ -15,14 +17,24 @@ body {
   font-family: Verdana, Geneva, Arial, sans-serif;
   font-size: 12px;
   color: var(--text-dark);
-  background: var(--page-bg);
+  background-color: var(--page-bg);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(59, 89, 152, 0.04),
+    rgba(59, 89, 152, 0.04) 10px,
+    transparent 10px,
+    transparent 20px
+  );
 }
 
 .panel {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
   border-radius: 2px;
   margin-bottom: 10px;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .panel-body {
@@ -39,10 +51,15 @@ body {
   border-radius: 3px;
   padding: 4px 10px;
   cursor: pointer;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .btn:hover {
   background: linear-gradient(to bottom, #f2f5fa, #dbe4f0);
+}
+
+.btn:active {
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .btn-primary {
@@ -107,4 +124,18 @@ table.list-table td {
 
 table.list-table tr:hover td {
   background: #f5f8fc;
+}
+.brand-logo-img {
+  height: 32px;
+  background: #fff;
+  padding: 3px 8px;
+  border-radius: 3px;
+  display: block;
+}
+
+h1, h2, h3 {
+  font-family: Verdana, Geneva, Arial, sans-serif;
+  font-weight: bold;
+  margin: 0 0 8px 0;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
 }

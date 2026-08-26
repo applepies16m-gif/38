@@ -7,3 +7,11 @@ export interface ChatMessage {
   imageUrl?: string;
   timestamp: string;
 }
+
+export interface SystemMessage {
+  id: string;
+  channelId: string;
+  type: 'join' | 'leave';
+  username: string;
+  timestamp: string;
+}

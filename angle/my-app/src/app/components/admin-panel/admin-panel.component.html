@@ -1,7 +1,7 @@
 <div class="admin-page">
 
   <div class="top-bar">
-    <span class="brand-logo">griffchat</span>
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
     <span class="admin-title">Admin Control Panel</span>
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
@@ -37,7 +37,10 @@
                   {{ u.online ? 'online' : 'offline' }}
                 </span>
               </td>
-              <td><a (click)="removeUser(u)">remove</a></td>
+              <td>
+                <a (click)="removeUser(u)">remove</a> &middot;
+                <a (click)="banFromSystem(u)">ban from system</a>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -77,6 +80,34 @@
         </div>
       </div>
     </div>
+    <div class="panel">
+  <div class="panel-header">Pending Group Requests</div>
+  <div class="panel-body">
+    <table class="list-table" *ngIf="groupRequests.length; else noGroupReq">
+      <thead>
+        <tr><th>Proposed Title</th><th>Requested By</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let gr of groupRequests">
+          <td>{{ gr.proposedTitle }}</td>
+          <td>{{ gr.requestedBy }}</td>
+          <td>
+            <span class="badge" [ngClass]="gr.status === 'pending' ? 'badge-user' : (gr.status === 'approved' ? 'badge-online' : 'badge-admin')">
+              {{ gr.status }}
+            </span>
+            <span *ngIf="gr.rejectionReason" class="reason-text"> — {{ gr.rejectionReason }}</span>
+          </td>
+          <td *ngIf="gr.status === 'pending'">
+            <a (click)="approveGroupRequest(gr)">approve</a> &middot;
+            <a (click)="rejectGroupRequest(gr)">reject</a>
+          </td>
+          <td *ngIf="gr.status !== 'pending'"></td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #noGroupReq><p class="empty-text">No pending group requests.</p></ng-template>
+  </div>
+</div>
 
   </div>
 </div>

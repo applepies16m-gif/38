@@ -1,0 +1,18 @@
+[
+  {
+    "id": "g1",
+    "title": "2802ICT Study Group",
+    "description": "Study group for 2802ICT students working through search algorithms and CSP.",
+    "ageLimit": 0,
+    "adminIds": ["u2"],
+    "channelIds": ["c1", "c2"]
+  },
+  {
+    "id": "g2",
+    "title": "Casual Chat",
+    "description": "General off-topic chat for classmates.",
+    "ageLimit": 0,
+    "adminIds": ["u2"],
+    "channelIds": ["c3"]
+  }
+]

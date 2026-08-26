@@ -1,10 +1,11 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { User } from '../../models/user.model';
-import { Group } from '../../models/group.model';
+import { Group, GroupCreationRequest } from '../../models/group.model';
 import { UserService } from '../../services/user.service';
+import { GroupService } from '../../services/group.service';
 
 @Component({
   selector: 'app-admin-panel',
@@ -15,34 +16,54 @@ import { UserService } from '../../services/user.service';
 })
 export class AdminPanelComponent implements OnInit {
   users: User[] = [];
+  groups: Group[] = [];
 
-  // Groups stay mock data for now -- only Users are wired to the
-  // backend for this Phase 1 slice, per the brief's "basic user
-  // management" scope.
-  groups: Group[] = [
-    { id: 'g1', title: '2802ICT Study Group', description: 'Study group for 2802ICT students working through search algorithms and CSP.', ageLimit: 0, adminIds: ['u3'], channelIds: ['c1', 'c2'] },
-    { id: 'g2', title: 'Casual Chat', description: 'General off-topic chat for classmates.', ageLimit: 0, adminIds: ['u3'], channelIds: ['c3'] }
+  groupRequests: GroupCreationRequest[] = [
+    { id: 'gr1', requestedBy: 'me', proposedTitle: 'Board Games Club', proposedDescription: 'Weekly meetups to play board games on campus.', status: 'pending' }
   ];
 
   newUsername = '';
   newDisplayName = '';
+  newPassword = '';
   newGroupName = '';
 
-  constructor(private userService: UserService, private cdr: ChangeDetectorRef) {}
+  constructor(
+    private userService: UserService,
+    private groupService: GroupService,
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
+    const role = this.route.snapshot.queryParams['role'];
+    if (role !== 'super_admin') {
+      this.router.navigate(['/chat'], { queryParams: this.route.snapshot.queryParams });
+      return;
+    }
+
     this.userService.getUsers().subscribe(users => {
       this.users = users;
+      this.cdr.markForCheck();
+    });
+
+    this.groupService.getGroups().subscribe(groups => {
+      this.groups = groups;
       this.cdr.markForCheck();
     });
   }
 
   requestNewUser(): void {
-    if (!this.newUsername.trim()) {
+    if (!this.newUsername.trim() || !this.newPassword.trim()) {
+      return;
+    }
+    if (this.newPassword.length < 8 || !/[A-Z]/.test(this.newPassword)) {
+      alert('Password must be at least 8 characters and include an uppercase letter.');
       return;
     }
     const newUser: Partial<User> = {
       username: this.newUsername,
+      password: this.newPassword,
       displayName: this.newDisplayName || this.newUsername,
       email: this.newUsername + '@student.griffith.edu.au',
       role: 'user',
@@ -56,6 +77,7 @@ export class AdminPanelComponent implements OnInit {
       this.cdr.markForCheck();
       this.newUsername = '';
       this.newDisplayName = '';
+      this.newPassword = '';
     });
   }
 
@@ -63,15 +85,18 @@ export class AdminPanelComponent implements OnInit {
     if (!this.newGroupName.trim()) {
       return;
     }
-    this.groups.push({
-      id: 'g' + (this.groups.length + 1),
+    const newGroup: Partial<Group> = {
       title: this.newGroupName,
       description: '',
       ageLimit: 0,
       adminIds: [],
       channelIds: []
+    };
+    this.groupService.createGroup(newGroup).subscribe(createdGroup => {
+      this.groups.push(createdGroup);
+      this.cdr.markForCheck();
+      this.newGroupName = '';
     });
-    this.newGroupName = '';
   }
 
   groupNames(user: User): string {
@@ -86,5 +111,38 @@ export class AdminPanelComponent implements OnInit {
       this.users = this.users.filter(u => u.id !== user.id);
       this.cdr.markForCheck();
     });
+  }
+
+  approveGroupRequest(req: GroupCreationRequest): void {
+    req.status = 'approved';
+    const newGroup: Partial<Group> = {
+      title: req.proposedTitle,
+      description: req.proposedDescription,
+      ageLimit: 0,
+      adminIds: [req.requestedBy],
+      channelIds: []
+    };
+    this.groupService.createGroup(newGroup).subscribe(createdGroup => {
+      this.groups.push(createdGroup);
+      this.cdr.markForCheck();
+    });
+  }
+
+  rejectGroupRequest(req: GroupCreationRequest): void {
+    const reason = prompt('Reason for rejecting this group request?');
+    if (reason === null) {
+      return;
+    }
+    req.status = 'rejected';
+    req.rejectionReason = reason;
+  }
+
+  banFromSystem(user: User): void {
+    const confirmed = confirm(`Permanently ban ${user.displayName} from the entire system?`);
+    if (!confirmed) {
+      return;
+    }
+    user.isSystemBanned = true;
+    this.users = this.users.filter(u => u.id !== user.id);
   }
 }

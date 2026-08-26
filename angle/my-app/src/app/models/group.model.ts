@@ -30,3 +30,11 @@ export interface Group {
   channelIds: string[];
   theme?: string;         // optional group background/theme
 }
+export interface GroupCreationRequest {
+  id: string;
+  requestedBy: string;   // userId — becomes the group's admin once approved
+  proposedTitle: string;
+  proposedDescription: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+}

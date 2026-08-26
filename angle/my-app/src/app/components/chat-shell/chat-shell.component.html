@@ -1,14 +1,15 @@
 <div class="shell">
 
   <div class="top-bar">
-    <span class="brand-logo">griffchat</span>
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
     <div class="top-bar-right">
-      <span class="welcome-text">welcome, {{ currentUsername }}</span>
       <span class="badge" [ngClass]="currentRole === 'user' ? 'badge-user' : 'badge-admin'">
         {{ currentRole === 'user' ? 'member' : 'admin' }}
       </span>
       <a *ngIf="currentRole === 'super_admin'" routerLink="/admin">Admin Panel</a>
       <a *ngIf="currentRole === 'group_admin' || currentRole === 'super_admin'" routerLink="/group-admin">Manage Group</a>
+      <a routerLink="/group-request">Request Group</a>
+      <a routerLink="/profile">My Profile</a>
       <a (click)="logout()">Log Out</a>
     </div>
   </div>
@@ -16,32 +17,53 @@
   <div class="body-columns">
 
     <div class="col-left">
-      <div class="panel" *ngFor="let g of groups">
-        <div class="panel-header">{{ g.title }}</div>
-        <div class="panel-body no-pad">
-          <div
-            *ngFor="let ch of channelsForGroup(g.id)"
-            class="channel-row"
-            [class.active]="ch.id === activeChannelId"
-            (click)="selectChannel(ch.id)"
-          >
-            # {{ ch.name }}
-          </div>
+  <ng-container *ngIf="hasGroups; else noGroups">
+    <div class="panel" *ngFor="let g of groups">
+      <div class="panel-header">{{ g.title }}</div>
+      <div class="panel-body no-pad">
+        <div
+          *ngFor="let ch of channelsForGroup(g.id)"
+          class="channel-row"
+          [class.active]="ch.id === activeChannelId"
+          (click)="selectChannel(ch.id)"
+        >
+          # {{ ch.name }}
         </div>
       </div>
     </div>
+  </ng-container>
 
+  <ng-template #noGroups>
+    <div class="panel">
+      <div class="panel-body">
+        <p class="empty-groups-text">You're not in any groups yet.</p>
+        <a routerLink="/browse-groups" class="btn btn-primary">Browse Groups</a>
+      </div>
+    </div>
+  </ng-template>
+</div>
     <div class="col-center panel">
       <div class="panel-header">
         # {{ activeChannel?.name || 'select a channel' }}
       </div>
       <div class="thread">
-        <div class="msg-row" *ngFor="let m of visibleMessages">
-          <span class="msg-sender">{{ m.senderName }}</span>
-          <span class="msg-time">{{ m.timestamp }}</span>
-          <div class="msg-text">{{ m.text }}</div>
-        </div>
-      </div>
+  <ng-container *ngFor="let item of threadItems">
+
+    <!-- system message: join/leave, dimmer inline text -->
+    <div class="system-row" *ngIf="isSystemMessage(item)">
+      {{ item.username }} has {{ item.type === 'join' ? 'joined' : 'left' }} the room &middot; {{ item.timestamp }}
+    </div>
+
+    <!-- regular chat message -->
+    <div class="msg-row" *ngIf="!isSystemMessage(item)">
+      <span class="msg-sender">{{ item.senderName }}</span>
+      <span class="msg-time">{{ item.timestamp }}</span>
+      <div class="msg-text">{{ item.text }}</div>
+      <img *ngIf="item.imageUrl" [src]="item.imageUrl" class="msg-image" />
+    </div>
+
+  </ng-container>
+</div>
       <div class="composer">
         <input
           type="text"
@@ -65,4 +87,4 @@
     </div>
 
   </div>
-</div>
+  </div>

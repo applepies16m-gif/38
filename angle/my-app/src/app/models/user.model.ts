@@ -1,11 +1,12 @@
 export interface User {
   id: string;
   username: string;
+  password: string;
   displayName: string;
-  email: string;          // locked after registration
+  email: string;
   role: 'super_admin' | 'group_admin' | 'user';
   online: boolean;
-  groupIds: string[];     // groups this user has been approved into
+  groupIds: string[];
   bannedFromGroupIds: string[];
   isSystemBanned: boolean;
 }

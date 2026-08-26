@@ -1,23 +1,49 @@
 [
   {
     "id": "u1",
-    "groupIds": [],
-    "username": "jordan",
-    "isSystemBanned": false,
-    "displayName": "Jordan",
-    "bannedFromGroupIds": [],
-    "role": "user",
+    "username": "superadmin",
+    "password": "Super123",
+    "displayName": "Super Admin",
+    "email": "superadmin@griffith.edu.au",
+    "role": "super_admin",
     "online": false,
-    "email": "jordan@student.griffith.edu.au"
+    "groupIds": [],
+    "bannedFromGroupIds": [],
+    "isSystemBanned": false
   },
   {
     "id": "u2",
-    "username": "tony",
-    "displayName": "supper",
-    "email": "tony@student.griffith.edu.au",
+    "username": "groupadmin",
+    "password": "Group123",
+    "displayName": "Group Admin",
+    "email": "groupadmin@student.griffith.edu.au",
+    "role": "group_admin",
+    "online": true,
+    "groupIds": ["g1"],
+    "bannedFromGroupIds": [],
+    "isSystemBanned": false
+  },
+  {
+    "id": "u3",
+    "username": "newuser",
+    "password": "NewUser123",
+    "displayName": "New User",
+    "email": "newuser@student.griffith.edu.au",
     "role": "user",
-    "online": false,
+    "online": true,
     "groupIds": [],
+    "bannedFromGroupIds": [],
+    "isSystemBanned": false
+  },
+  {
+    "id": "u4",
+    "username": "member",
+    "password": "Member123",
+    "displayName": "Member",
+    "email": "member@student.griffith.edu.au",
+    "role": "user",
+    "online": true,
+    "groupIds": ["g1"],
     "bannedFromGroupIds": [],
     "isSystemBanned": false
   }
