@@ -3,7 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { User } from '../models/user.model';
 
-const API_URL = 'http://localhost:3000/api/users';
+const API_BASE = 'http://localhost:3000/api';
+const API_URL = `${API_BASE}/users`;
 
 @Injectable({
   providedIn: 'root'
@@ -21,5 +22,9 @@ export class UserService {
 
   deleteUser(id: string): Observable<void> {
     return this.http.delete<void>(`${API_URL}/${id}`);
+  }
+
+  login(username: string, password: string): Observable<User> {
+    return this.http.post<User>(`${API_BASE}/login`, { username, password });
   }
 }

@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { TEST_USERS } from '../../mock-data/test-users';
+import { UserService } from '../../services/user.service';
 
 @Component({
   selector: 'app-login',
@@ -16,7 +16,7 @@ export class LoginComponent {
   password = '';
   errorMsg = '';
 
-  constructor(private router: Router) {}
+  constructor(private router: Router, private userService: UserService) {}
 
   onLogin(): void {
     if (!this.username || !this.password) {
@@ -24,24 +24,20 @@ export class LoginComponent {
       return;
     }
 
-    const testUser = TEST_USERS[this.username.toLowerCase()];
-
-    if (testUser) {
-      if (this.password !== testUser.password) {
-        this.errorMsg = 'Incorrect password.';
-        return;
+    this.userService.login(this.username, this.password).subscribe({
+      next: (user) => {
+        const destination = user.role === 'super_admin' ? '/admin' : '/chat';
+        this.router.navigate([destination], {
+          queryParams: {
+            role: user.role,
+            user: user.username,
+            hasGroups: user.groupIds.length > 0
+          }
+        });
+      },
+      error: () => {
+        this.errorMsg = 'Incorrect username or password.';
       }
-      const destination = testUser.role === 'super_admin' ? '/admin' : '/chat';
-      this.router.navigate([destination], {
-        queryParams: { role: testUser.role, user: this.username, hasGroups: testUser.hasGroups }
-      });
-      return;
-    }
-
-    // Not a known test persona -- treat as a generic member, any
-    // password accepted (Phase 1 mock only).
-    this.router.navigate(['/chat'], {
-      queryParams: { role: 'user', user: this.username, hasGroups: true }
     });
   }
 }
