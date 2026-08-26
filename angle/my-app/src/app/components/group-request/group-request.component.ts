@@ -1,9 +1,25 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GroupCreationRequest } from '../../models/group.model';
 
+@Component({
+  selector: 'app-group-request',
+  standalone: true,
+  imports: [CommonModule, FormsModule, RouterLink],
+  templateUrl: './group-request.component.html',
+  styleUrl: './group-request.component.css'
+})
+export class GroupRequestComponent implements OnInit {
+  constructor(private route: ActivatedRoute, private router: Router) {}
+
+  ngOnInit(): void {
+    const role = this.route.snapshot.queryParams['role'];
+    if (role === 'super_admin') {
+      this.router.navigate(['/admin'], { queryParams: this.route.snapshot.queryParams });
+    }
+  }
 @Component({
   selector: 'app-group-request',
   standalone: true,

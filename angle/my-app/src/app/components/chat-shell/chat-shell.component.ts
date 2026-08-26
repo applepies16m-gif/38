@@ -51,6 +51,12 @@ groups: Group[] = [
   hasGroups = true;
 
 ngOnInit(): void {
+  const role = this.route.snapshot.queryParams['role'];
+  if (role === 'super_admin') {
+    this.router.navigate(['/admin'], { queryParams: this.route.snapshot.queryParams });
+    return;
+  }
+
   this.route.queryParams.subscribe(params => {
     this.currentUsername = params['user'] || 'guest';
     this.currentRole = params['role'] || 'user';
