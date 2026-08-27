@@ -14,11 +14,11 @@
     </div>
   </div>
 
+  <ng-container *ngIf="hasGroups; else noGroupsShell">
   <div class="body-columns">
 
     <div class="col-left">
-  <ng-container *ngIf="hasGroups; else noGroups">
-    <div class="panel" *ngFor="let g of groups">
+  <div class="panel" *ngFor="let g of groups">
       <div class="panel-header">{{ g.title }}</div>
       <div class="panel-body no-pad">
         <div
@@ -31,16 +31,6 @@
         </div>
       </div>
     </div>
-  </ng-container>
-
-  <ng-template #noGroups>
-    <div class="panel">
-      <div class="panel-body">
-        <p class="empty-groups-text">You're not in any groups yet.</p>
-        <a routerLink="/browse-groups" class="btn btn-primary">Browse Groups</a>
-      </div>
-    </div>
-  </ng-template>
 </div>
     <div class="col-center panel">
       <div class="panel-header">
@@ -88,4 +78,17 @@
     </div>
 
   </div>
-  </div>
+  </ng-container>
+
+  <ng-template #noGroupsShell>
+    <div class="body-columns no-groups-shell">
+      <div class="panel no-groups-panel">
+        <div class="panel-body">
+          <p class="empty-groups-text">You're not in any groups yet — join one to start chatting.</p>
+          <button class="btn btn-primary" (click)="requestToJoin()">Request to Join a Group</button>
+        </div>
+      </div>
+    </div>
+  </ng-template>
+
+</div>
