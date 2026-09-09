@@ -2,7 +2,7 @@
 
 **Student Name:** Anthony Quizon
 **Student Number:** S5353244
-**Workshop Time:** [FILL IN — add your workshop time]
+**Workshop Time:** 11-1am
 **Course:** 3813ICT — Full Stack Development
 **GitHub Repository:** https://github.com/applepies16m-gif/38
 
