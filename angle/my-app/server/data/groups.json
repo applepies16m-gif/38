@@ -4,15 +4,50 @@
     "title": "2802ICT Study Group",
     "description": "Study group for 2802ICT students working through search algorithms and CSP.",
     "ageLimit": 0,
-    "adminIds": ["u2"],
-    "channelIds": ["c1", "c2"]
+    "adminIds": [
+      "u2"
+    ],
+    "channelIds": [
+      "c1",
+      "c2"
+    ]
   },
   {
     "id": "g2",
     "title": "Casual Chat",
     "description": "General off-topic chat for classmates.",
     "ageLimit": 0,
-    "adminIds": ["u2"],
-    "channelIds": ["c3"]
+    "adminIds": [
+      "u2"
+    ],
+    "channelIds": [
+      "c3"
+    ]
+  },
+  {
+    "id": "g3",
+    "title": "Board Games Club",
+    "description": "Weekly meetups to play board games on campus.",
+    "ageLimit": 0,
+    "adminIds": [
+      "me"
+    ],
+    "channelIds": []
+  },
+  {
+    "id": "g4",
+    "title": "today's group",
+    "description": "",
+    "ageLimit": 0,
+    "adminIds": [],
+    "channelIds": []
+  },
+  {
+    "id": "g5",
+    "title": "this group",
+    "description": "",
+    "ageLimit": 0,
+    "adminIds": [],
+    "channelIds": []
   }
 ]

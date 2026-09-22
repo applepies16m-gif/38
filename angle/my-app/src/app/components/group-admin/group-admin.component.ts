@@ -1,9 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { User } from '../../models/user.model';
 import { Group, JoinRequest, RoomRequest, BanRequest } from '../../models/group.model';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-group-admin',
@@ -13,12 +14,16 @@ import { Group, JoinRequest, RoomRequest, BanRequest } from '../../models/group.
   styleUrl: './group-admin.component.css'
 })
 export class GroupAdminComponent implements OnInit {
-  constructor(private route: ActivatedRoute, private router: Router) {}
+  constructor(private router: Router, private authService: AuthService) {}
 
   ngOnInit(): void {
-    const role = this.route.snapshot.queryParams['role'];
-    if (role !== 'group_admin' && role !== 'super_admin') {
-      this.router.navigate(['/chat'], { queryParams: this.route.snapshot.queryParams });
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser) {
+      this.router.navigate(['/login']);
+      return;
+    }
+    if (currentUser.role !== 'group_admin' && currentUser.role !== 'super_admin') {
+      this.router.navigate(['/chat']);
     }
   }
 
@@ -50,8 +55,6 @@ export class GroupAdminComponent implements OnInit {
     { id: 'br1', requestedBy: 'u2', targetUserId: 'u1', groupId: 'g1', reason: 'Repeated off-topic spam in #general.', status: 'pending' }
   ];
 
-  // Just for displaying a name against a join/room/ban request's userId,
-  // since real users aren't loaded from a service yet.
   requesterNames: Record<string, string> = {
     u4: 'Jordan',
     u5: 'Priya'

@@ -1,0 +1,77 @@
+.register-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--page-bg);
+}
+
+.brand-bar {
+  background: linear-gradient(to bottom, #4a6bab, var(--chrome-blue));
+  border-bottom: 1px solid var(--chrome-blue-dark);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+}
+
+.brand-tagline {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.register-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.register-box {
+  width: 320px;
+}
+
+.field-row {
+  margin-bottom: 10px;
+}
+
+.field-row label {
+  display: block;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.field-row input {
+  width: 100%;
+  padding: 7px 8px;
+}
+
+.hint-inline {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.register-btn {
+  width: 100%;
+  padding: 7px 0;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.error-msg {
+  color: #c0392b;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}

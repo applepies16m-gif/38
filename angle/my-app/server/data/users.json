@@ -19,7 +19,9 @@
     "email": "groupadmin@student.griffith.edu.au",
     "role": "group_admin",
     "online": true,
-    "groupIds": ["g1"],
+    "groupIds": [
+      "g1"
+    ],
     "bannedFromGroupIds": [],
     "isSystemBanned": false
   },
@@ -43,7 +45,35 @@
     "email": "member@student.griffith.edu.au",
     "role": "user",
     "online": true,
-    "groupIds": ["g1"],
+    "groupIds": [
+      "g1"
+    ],
+    "bannedFromGroupIds": [],
+    "isSystemBanned": false
+  },
+  {
+    "id": "u5",
+    "username": "tim",
+    "password": "Password",
+    "displayName": "tommy",
+    "email": "tim@fakemail",
+    "dateOfBirth": "2010-10-09",
+    "role": "user",
+    "online": true,
+    "groupIds": [],
+    "bannedFromGroupIds": [],
+    "isSystemBanned": false
+  },
+  {
+    "id": "u6",
+    "username": "megamark",
+    "password": "Password",
+    "displayName": "mark",
+    "email": "fakemail@mark",
+    "dateOfBirth": "2000-09-29",
+    "role": "user",
+    "online": true,
+    "groupIds": [],
     "bannedFromGroupIds": [],
     "isSystemBanned": false
   }

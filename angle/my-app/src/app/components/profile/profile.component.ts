@@ -1,8 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-
+import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-profile',
@@ -14,7 +14,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 export class ProfileComponent implements OnInit {
   username = '';
   displayName = '';
-  email = 'you@student.griffith.edu.au'; // locked, per spec -- shown but not editable
+  email = ''; // locked, per spec -- shown but not editable; set from AuthService in ngOnInit
   bio = '';
   profilePicUrl: string | null = null;
 
@@ -25,17 +25,27 @@ export class ProfileComponent implements OnInit {
 
   saved = false;
 
-  constructor(private route: ActivatedRoute, private router: Router) {}
+constructor(
+  private router: Router,
+  private authService: AuthService
+) {}
 
-    ngOnInit(): void {
-      const params = this.route.snapshot.queryParams;
-      if (params['role'] === 'super_admin') {
-        this.router.navigate(['/admin'], { queryParams: params });
-        return;
-      }
-      this.username = params['user'] || 'guest';
-      this.displayName = params['user'] || 'Guest';
-    }
+ngOnInit(): void {
+  const currentUser = this.authService.getCurrentUser();
+  if (!currentUser) {
+    this.router.navigate(['/login']);
+    return;
+  }
+
+  if (currentUser.role === 'super_admin') {
+    this.router.navigate(['/admin']);
+    return;
+  }
+
+  this.username = currentUser.username;
+  this.displayName = currentUser.displayName;
+  this.email = currentUser.email;
+}
   onPictureSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];

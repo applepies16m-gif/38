@@ -1,8 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { GroupCreationRequest } from '../../models/group.model';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-group-request',
@@ -12,14 +13,22 @@ import { GroupCreationRequest } from '../../models/group.model';
   styleUrl: './group-request.component.css'
 })
 export class GroupRequestComponent implements OnInit {
-  constructor(private route: ActivatedRoute, private router: Router) {}
+ constructor(
+  private router: Router,
+  private authService: AuthService
+) {}
 
-  ngOnInit(): void {
-    const role = this.route.snapshot.queryParams['role'];
-    if (role === 'super_admin') {
-      this.router.navigate(['/admin'], { queryParams: this.route.snapshot.queryParams });
-    }
+ngOnInit(): void {
+  const currentUser = this.authService.getCurrentUser();
+  if (!currentUser) {
+    this.router.navigate(['/login']);
+    return;
   }
+
+  if (currentUser.role === 'super_admin') {
+    this.router.navigate(['/admin']);
+  }
+}
 
   proposedTitle = '';
   proposedDescription = '';
