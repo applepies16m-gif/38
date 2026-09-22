@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Group, Channel } from '../../models/group.model';
 import { User } from '../../models/user.model';
 import { ChatMessage, SystemMessage } from '../../models/message.model';
@@ -47,31 +47,28 @@ groups: Group[] = [
   activeChannelId = 'c1';
   draftMessage = '';
 
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private authService: AuthService
-  ) {}
+constructor(
+  private router: Router,
+  private authService: AuthService
+) {}
 
-  hasGroups = true;
+hasGroups = true;
 
 ngOnInit(): void {
-  if (!this.authService.isLoggedIn()) {
+  const currentUser = this.authService.getCurrentUser();
+  if (!currentUser) {
     this.router.navigate(['/login']);
     return;
   }
 
-  const role = this.route.snapshot.queryParams['role'];
-  if (role === 'super_admin') {
-    this.router.navigate(['/admin'], { queryParams: this.route.snapshot.queryParams });
+  if (currentUser.role === 'super_admin') {
+    this.router.navigate(['/admin']);
     return;
   }
 
-  this.route.queryParams.subscribe(params => {
-    this.currentUsername = params['user'] || 'guest';
-    this.currentRole = params['role'] || 'user';
-    this.hasGroups = params['hasGroups'] !== 'false';
-  });
+  this.currentUsername = currentUser.displayName || currentUser.username;
+  this.currentRole = currentUser.role;
+  this.hasGroups = currentUser.groupIds.length > 0;
 }
   get activeChannel(): Channel | undefined {
     return this.channels.find(c => c.id === this.activeChannelId);

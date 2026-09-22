@@ -1,12 +1,13 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import {Router, RouterLink } from '@angular/router';
 import { User } from '../../models/user.model';
 import { Group, GroupCreationRequest } from '../../models/group.model';
 import { UserService } from '../../services/user.service';
 import { GroupService } from '../../services/group.service';
 import { AuthService } from '../../services/auth.service';
+
 
 @Component({
   selector: 'app-admin-panel',
@@ -32,22 +33,21 @@ export class AdminPanelComponent implements OnInit {
     private userService: UserService,
     private groupService: GroupService,
     private cdr: ChangeDetectorRef,
-    private route: ActivatedRoute,
     private router: Router,
     private authService: AuthService
   ) {}
 
-  ngOnInit(): void {
-    if (!this.authService.isLoggedIn()) {
-      this.router.navigate(['/login']);
-      return;
-    }
+ ngOnInit(): void {
+  const currentUser = this.authService.getCurrentUser();
+  if (!currentUser) {
+    this.router.navigate(['/login']);
+    return;
+  }
 
-    const role = this.route.snapshot.queryParams['role'];
-    if (role !== 'super_admin') {
-      this.router.navigate(['/chat'], { queryParams: this.route.snapshot.queryParams });
-      return;
-    }
+  if (currentUser.role !== 'super_admin') {
+    this.router.navigate(['/chat']);
+    return;
+  }
 
     this.userService.getUsers().subscribe(users => {
       this.users = users;

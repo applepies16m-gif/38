@@ -1,0 +1,57 @@
+<div class="register-page">
+
+  <div class="brand-bar">
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <span class="brand-tagline">join the community.</span>
+  </div>
+
+  <div class="register-wrap">
+    <div class="panel register-box">
+      <div class="panel-header">Create Your Account</div>
+      <div class="panel-body">
+        <form (ngSubmit)="onRegister()">
+
+          <div class="field-row">
+            <label>Display Name</label>
+            <input type="text" [(ngModel)]="displayName" name="displayName" />
+          </div>
+
+          <div class="field-row">
+            <label>Username</label>
+            <input type="text" [(ngModel)]="username" name="username" />
+          </div>
+
+          <div class="field-row">
+            <label>Email</label>
+            <input type="text" [(ngModel)]="email" name="email" />
+          </div>
+
+          <div class="field-row">
+            <label>Date of Birth</label>
+            <input type="date" [(ngModel)]="dateOfBirth" name="dateOfBirth" />
+          </div>
+
+          <div class="field-row">
+            <label>Password</label>
+            <input type="password" [(ngModel)]="password" name="password" />
+            <span class="hint-inline">min 8 characters, 1 uppercase letter</span>
+          </div>
+
+          <div class="field-row">
+            <label>Confirm Password</label>
+            <input type="password" [(ngModel)]="confirmPassword" name="confirmPassword" />
+          </div>
+
+          <div *ngIf="errorMsg" class="error-msg">{{ errorMsg }}</div>
+
+          <button type="submit" class="btn btn-primary register-btn">Create Account</button>
+
+          <div class="hint">
+            already have an account? <a routerLink="/login">log in</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
