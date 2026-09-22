@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const { ObjectId } = require('mongodb');
+const { connectToDatabase, getDb } = require('./db');
 
 const app = express();
 const PORT = 3000;
@@ -11,80 +11,64 @@ app.use(cors());
 // Parses incoming JSON request bodies into req.body automatically.
 app.use(express.json());
 
-const USERS_FILE = path.join(__dirname, 'data', 'users.json');
-const GROUPS_FILE = path.join(__dirname, 'data', 'groups.json');
-
-// Small helper: reads a JSON file and parses it. If the file doesn't
-// exist yet (first run), returns an empty array instead of crashing.
-function readJsonFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-  const raw = fs.readFileSync(filePath, 'utf-8');
-  return JSON.parse(raw);
-}
-
-// Small helper: writes data back to a JSON file, pretty-printed so
-// it's readable if you open it directly.
-function writeJsonFile(filePath, data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+// Strips MongoDB's real _id off a document and replaces it with a
+// plain string `id`, matching what the Angular models expect.
+function toClientShape(doc) {
+  const { _id, ...rest } = doc;
+  return { ...rest, id: _id.toString() };
 }
 
 // --- Users ---
 
-app.get('/api/users', (req, res) => {
-  const users = readJsonFile(USERS_FILE);
-  res.json(users);
+app.get('/api/users', async (req, res) => {
+  const users = await getDb().collection('users').find().toArray();
+  res.json(users.map(toClientShape));
 });
-app.post('/api/login', (req, res) => {
+
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  const users = readJsonFile(USERS_FILE);
-  const user = users.find(u => u.username.toLowerCase() === (username || '').toLowerCase());
+  const user = await getDb().collection('users').findOne({
+    username: (username || '').toLowerCase()
+  });
 
   if (!user || user.password !== password) {
     return res.status(401).json({ message: 'Invalid username or password.' });
   }
 
-  // Never send the password back to the client.
-  const { password: _pw, ...safeUser } = user;
+  const { password: _pw, ...safeUser } = toClientShape(user);
   res.json(safeUser);
 });
-app.post('/api/users', (req, res) => {
-  const users = readJsonFile(USERS_FILE);
+
+app.post('/api/users', async (req, res) => {
   const newUser = {
-    id: 'u' + (users.length + 1),
-    ...req.body
+    ...req.body,
+    username: (req.body.username || '').toLowerCase()
   };
-  users.push(newUser);
-  writeJsonFile(USERS_FILE, users);
-  res.status(201).json(newUser);
+  const result = await getDb().collection('users').insertOne(newUser);
+  res.status(201).json(toClientShape({ ...newUser, _id: result.insertedId }));
 });
 
-app.delete('/api/users/:id', (req, res) => {
-  let users = readJsonFile(USERS_FILE);
-  users = users.filter(u => u.id !== req.params.id);
-  writeJsonFile(USERS_FILE, users);
+app.delete('/api/users/:id', async (req, res) => {
+  await getDb().collection('users').deleteOne({ _id: new ObjectId(req.params.id) });
   res.status(204).send();
 });
 
 // --- Groups ---
 
-app.get('/api/groups', (req, res) => {
-  const groups = readJsonFile(GROUPS_FILE);
-  res.json(groups);
+app.get('/api/groups', async (req, res) => {
+  const groups = await getDb().collection('groups').find().toArray();
+  res.json(groups.map(toClientShape));
 });
 
-app.post('/api/groups', (req, res) => {
-  const groups = readJsonFile(GROUPS_FILE);
-  const newGroup = {
-    id: 'g' + (groups.length + 1),
-    ...req.body
-  };
-  groups.push(newGroup);
-  writeJsonFile(GROUPS_FILE, groups);
-  res.status(201).json(newGroup);
+app.post('/api/groups', async (req, res) => {
+  const result = await getDb().collection('groups').insertOne(req.body);
+  res.status(201).json(toClientShape({ ...req.body, _id: result.insertedId }));
 });
 
-app.listen(PORT, () => {
-  console.log(`griffchat server running on http://localhost:${PORT}`);
+connectToDatabase().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Fabulari server running on http://localhost:${PORT}`);
+  });
+}).catch(err => {
+  console.error('Failed to connect to MongoDB:', err.message);
 });
