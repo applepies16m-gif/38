@@ -1,0 +1,55 @@
+<div class="bootstrap-page">
+
+  <div class="brand-bar">
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <span class="brand-tagline">first-time setup.</span>
+  </div>
+
+  <div class="bootstrap-wrap">
+    <div class="panel bootstrap-box">
+      <div class="panel-header">Create the Initial Super Admin</div>
+      <div class="panel-body">
+
+        <p class="helper-text">
+          No accounts exist yet. Create the first Super Admin account
+          to finish setting up Fabulari. This screen will not appear
+          again once this account is created.
+        </p>
+
+        <form (ngSubmit)="onBootstrap()">
+
+          <div class="field-row">
+            <label>Display Name</label>
+            <input type="text" [(ngModel)]="displayName" name="displayName" />
+          </div>
+
+          <div class="field-row">
+            <label>Username</label>
+            <input type="text" [(ngModel)]="username" name="username" />
+          </div>
+
+          <div class="field-row">
+            <label>Email</label>
+            <input type="text" [(ngModel)]="email" name="email" />
+          </div>
+
+          <div class="field-row">
+            <label>Password</label>
+            <input type="password" [(ngModel)]="password" name="password" />
+            <span class="hint-inline">min 8 characters, 1 uppercase letter</span>
+          </div>
+
+          <div class="field-row">
+            <label>Confirm Password</label>
+            <input type="password" [(ngModel)]="confirmPassword" name="confirmPassword" />
+          </div>
+
+          <div *ngIf="errorMsg" class="error-msg">{{ errorMsg }}</div>
+
+          <button type="submit" class="btn btn-primary bootstrap-btn">Create Super Admin</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>

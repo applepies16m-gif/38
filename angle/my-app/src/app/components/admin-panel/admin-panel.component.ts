@@ -20,9 +20,7 @@ export class AdminPanelComponent implements OnInit {
   users: User[] = [];
   groups: Group[] = [];
 
-  groupRequests: GroupCreationRequest[] = [
-    { id: 'gr1', requestedBy: 'me', proposedTitle: 'Board Games Club', proposedDescription: 'Weekly meetups to play board games on campus.', status: 'pending' }
-  ];
+  groupRequests: GroupCreationRequest[] = [];
 
   newUsername = '';
   newDisplayName = '';
@@ -56,6 +54,10 @@ export class AdminPanelComponent implements OnInit {
 
     this.groupService.getGroups().subscribe(groups => {
       this.groups = groups;
+      this.cdr.markForCheck();
+    });
+    this.groupService.getGroupRequests().subscribe(requests => {
+      this.groupRequests = requests;
       this.cdr.markForCheck();
     });
   }
@@ -121,28 +123,33 @@ export class AdminPanelComponent implements OnInit {
   }
 
   approveGroupRequest(req: GroupCreationRequest): void {
-    req.status = 'approved';
-    const newGroup: Partial<Group> = {
-      title: req.proposedTitle,
-      description: req.proposedDescription,
-      ageLimit: 0,
-      adminIds: [req.requestedBy],
-      channelIds: []
-    };
-    this.groupService.createGroup(newGroup).subscribe(createdGroup => {
-      this.groups.push(createdGroup);
+  const newGroup: Partial<Group> = {
+    title: req.proposedTitle,
+    description: req.proposedDescription,
+    ageLimit: 0,
+    adminIds: [req.requestedBy],
+    channelIds: []
+  };
+  this.groupService.createGroup(newGroup).subscribe(createdGroup => {
+    this.groups.push(createdGroup);
+    this.groupService.updateGroupRequest(req.id, 'approved').subscribe(() => {
+      req.status = 'approved';
       this.cdr.markForCheck();
     });
-  }
+  });
+}
 
-  rejectGroupRequest(req: GroupCreationRequest): void {
-    const reason = prompt('Reason for rejecting this group request?');
-    if (reason === null) {
-      return;
-    }
+rejectGroupRequest(req: GroupCreationRequest): void {
+  const reason = prompt('Reason for rejecting this group request?');
+  if (reason === null) {
+    return;
+  }
+  this.groupService.updateGroupRequest(req.id, 'rejected', reason).subscribe(() => {
     req.status = 'rejected';
     req.rejectionReason = reason;
-  }
+    this.cdr.markForCheck();
+  });
+}
 
   banFromSystem(user: User): void {
     const confirmed = confirm(`Permanently ban ${user.displayName} from the entire system?`);

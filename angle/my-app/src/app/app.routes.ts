@@ -6,6 +6,8 @@ import { GroupAdminComponent } from './components/group-admin/group-admin.compon
 import { GroupRequestComponent } from './components/group-request/group-request.component';
 import { ProfileComponent } from './components/profile/profile.component';
 import { RegisterComponent } from './components/register/register.component';
+import { BootstrapComponent } from './components/bootstrap/bootstrap.component';
+import { BrowseGroupsComponent } from './components/browse-groups/browse-groups.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -16,4 +18,6 @@ export const routes: Routes = [
   { path: 'group-request', component: GroupRequestComponent },
   { path: 'profile', component: ProfileComponent },
   { path: 'register', component: RegisterComponent },
+  { path: 'bootstrap', component: BootstrapComponent },
+  { path: 'browse-groups', component: BrowseGroupsComponent },
 ];
