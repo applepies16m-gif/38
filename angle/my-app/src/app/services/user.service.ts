@@ -11,6 +11,13 @@ const API_URL = `${API_BASE}/users`;
 })
 export class UserService {
   constructor(private http: HttpClient) {}
+  checkBootstrapStatus(): Observable<{ needsBootstrap: boolean }> {
+  return this.http.get<{ needsBootstrap: boolean }>(`${API_BASE}/bootstrap-status`);
+}
+
+bootstrapSuperAdmin(user: Partial<User>): Observable<User> {
+  return this.http.post<User>(`${API_BASE}/bootstrap`, user);
+}
 
   getUsers(): Observable<User[]> {
     return this.http.get<User[]>(API_URL);
