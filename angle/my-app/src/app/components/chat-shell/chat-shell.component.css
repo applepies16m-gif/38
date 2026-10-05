@@ -116,6 +116,29 @@
   margin-top: 2px;
 }
 
+/* An image inside a message: capped so a large picture can't
+   push the rest of the thread off screen. */
+.msg-image {
+  display: block;
+  max-width: 260px;
+  max-height: 260px;
+  margin-top: 4px;
+  border: 1px solid var(--panel-border);
+}
+
+/* The strip above the composer naming the attached image, or
+   saying why a chosen file was refused. */
+.composer-attachment {
+  padding: 4px 8px;
+  font-size: 11px;
+  border-top: 1px solid var(--panel-border);
+  background: #f7f9fc;
+}
+
+.composer-error {
+  color: #a00000;
+}
+
 .composer {
   display: flex;
   gap: 6px;

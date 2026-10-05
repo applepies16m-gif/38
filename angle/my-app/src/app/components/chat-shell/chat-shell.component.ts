@@ -11,6 +11,7 @@ import { GroupService } from '../../services/group.service';
 import { ChannelService } from '../../services/channel.service';
 import { UserService } from '../../services/user.service';
 import { MessageService } from '../../services/message.service';
+import { UploadService } from '../../services/upload.service';
 
 @Component({
   selector: 'app-chat-shell',
@@ -42,6 +43,12 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   // Shown in the thread when the server refuses a join or message.
   channelNotice = '';
 
+  // The image chosen for the next message (not uploaded until Send),
+  // any problem with it, and whether a send is in progress.
+  pendingImage: File | null = null;
+  imageError = '';
+  isSending = false;
+
   constructor(
     private router: Router,
     private authService: AuthService,
@@ -50,6 +57,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     private channelService: ChannelService,
     private userService: UserService,
     private messageService: MessageService,
+    private uploadService: UploadService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -207,6 +215,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     this.messages = [];
     this.systemMessages = [];
     this.channelNotice = '';
+    this.removePendingImage();
 
     // The user id lets the server check this user is a member of
     // the channel's group before letting them in.
@@ -229,20 +238,81 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     });
   }
 
-  sendMessage(): void {
-    if (!this.draftMessage.trim() || !this.activeChannelId) {
+  // Runs when a file is picked with the Image button. The file is
+  // checked here (type and size) and kept until Send is pressed.
+  onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Clear the picker so choosing the same file again still fires.
+    input.value = '';
+    if (!file) {
       return;
     }
+    this.imageError = this.uploadService.checkImage(file);
+    this.pendingImage = this.imageError ? null : file;
+  }
+
+  // Drops the attached image without sending it.
+  removePendingImage(): void {
+    this.pendingImage = null;
+    this.imageError = '';
+  }
+
+  // Sends the draft. A message needs text, an image, or both. An
+  // image is uploaded first; only its path travels in the message.
+  sendMessage(): void {
+    const text = this.draftMessage.trim();
+    const image = this.pendingImage;
+    const channelId = this.activeChannelId;
+    if ((!text && !image) || !channelId || this.isSending) {
+      return;
+    }
+
+    if (!image) {
+      this.emitMessage(channelId, this.draftMessage);
+      this.draftMessage = '';
+      return;
+    }
+
+    this.isSending = true;
+    this.imageError = '';
+    this.uploadService.uploadImage(image).subscribe({
+      next: (uploaded) => {
+        this.isSending = false;
+        // If the user switched channel while the image uploaded,
+        // don't post it into a channel they are no longer in.
+        if (this.activeChannelId === channelId) {
+          this.emitMessage(channelId, this.draftMessage, uploaded.imageUrl);
+          this.draftMessage = '';
+          this.pendingImage = null;
+        }
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.isSending = false;
+        this.imageError = err.error?.message || 'The image could not be uploaded.';
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  // Hands one message to the server over the socket.
+  private emitMessage(channelId: string, text: string, imageUrl?: string): void {
     this.socketService.getSocket().emit('sendMessage', {
-      channelId: this.activeChannelId,
+      channelId,
       senderId: this.currentUserId,
       senderName: this.currentUsername,
-      text: this.draftMessage,
+      text,
+      imageUrl,
       // ISO format, the same as the server's join/leave notices, so
       // threadItems can sort both kinds together correctly.
       timestamp: new Date().toISOString()
     });
-    this.draftMessage = '';
+  }
+
+  // Full address for a message's image, for the <img> in the thread.
+  imageSrc(imageUrl: string): string {
+    return this.uploadService.fullUrl(imageUrl);
   }
 
   // Converts a stored timestamp into a short time for display,

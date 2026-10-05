@@ -43,3 +43,6 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 server/node_modules/
+
+# Images uploaded through the app
+server/uploads/

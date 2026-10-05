@@ -63,10 +63,16 @@
           <div class="msg-row" *ngIf="!isSystemMessage(item)">
             <span class="msg-sender">{{ item.senderName }}</span>
             <span class="msg-time">{{ formatTime(item.timestamp) }}</span>
-            <div class="msg-text">{{ item.text }}</div>
-            <img *ngIf="item.imageUrl" [src]="item.imageUrl" class="msg-image" />
+            <div class="msg-text" *ngIf="item.text">{{ item.text }}</div>
+            <img *ngIf="item.imageUrl" [src]="imageSrc(item.imageUrl)" class="msg-image" alt="Image sent by {{ item.senderName }}" />
           </div>
         </ng-container>
+      </div>
+      <div class="composer-attachment" *ngIf="pendingImage || imageError">
+        <span *ngIf="pendingImage">
+          Attached: {{ pendingImage.name }} &middot; <a (click)="removePendingImage()">remove</a>
+        </span>
+        <span class="composer-error" *ngIf="imageError">{{ imageError }}</span>
       </div>
       <div class="composer">
         <input
@@ -75,8 +81,17 @@
           [(ngModel)]="draftMessage"
           (keyup.enter)="sendMessage()"
         />
-        <button class="btn" title="Attach image (Phase 2)">Image</button>
-        <button class="btn btn-primary" (click)="sendMessage()">Send</button>
+        <input
+          #imagePicker
+          type="file"
+          accept="image/jpeg, image/png, image/gif"
+          hidden
+          (change)="onImageSelected($event)"
+        />
+        <button class="btn" title="Attach a JPEG, PNG or GIF (max 2 MB)" (click)="imagePicker.click()">Image</button>
+        <button class="btn btn-primary" [disabled]="isSending" (click)="sendMessage()">
+          {{ isSending ? 'Sending...' : 'Send' }}
+        </button>
       </div>
     </div>
 

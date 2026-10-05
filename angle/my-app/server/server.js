@@ -2,6 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const multer = require('multer');
 const { ObjectId } = require('mongodb');
 const { connectToDatabase, getDb } = require('./db');
 
@@ -10,6 +14,67 @@ const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// --- Image uploads: settings and helpers ---
+
+// Uploaded images are saved in this folder and served from /uploads.
+// Only the short path (e.g. /uploads/3f9a...c2.png) is stored in
+// MongoDB, never the image itself.
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const IMAGE_EXTENSIONS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif' };
+const IMAGE_TYPE_MESSAGE = 'Choose a JPEG, PNG or GIF image.';
+const IMAGE_SIZE_MESSAGE = 'Images must be 2 MB or smaller.';
+
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+// multer reads the uploaded file out of the request. The file is
+// held in memory (at most 2 MB) so its contents can be checked
+// before anything is written to disk.
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_BYTES, files: 1 },
+  fileFilter: (req, file, callback) => {
+    callback(null, Boolean(IMAGE_EXTENSIONS[file.mimetype]));
+  }
+});
+
+// Works out what kind of image a file really is from its first
+// bytes, which are fixed for each format. The type the browser
+// declares can be faked, so this is what the server trusts.
+// Returns the type, or null if it is none of the three allowed.
+function detectImageType(buffer) {
+  const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+  if (buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return 'image/jpeg';
+  }
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(pngSignature)) {
+    return 'image/png';
+  }
+  const gifHeader = buffer.subarray(0, 6).toString('latin1');
+  if (gifHeader === 'GIF87a' || gifHeader === 'GIF89a') {
+    return 'image/gif';
+  }
+  return null;
+}
+
+// True only for a path this server handed out itself: /uploads/,
+// 32 hex characters, and one of the three extensions. This stops a
+// message pointing at an outside address, and makes it safe to use
+// the path to find the file on disk.
+function isUploadedImageUrl(value) {
+  return typeof value === 'string' && /^\/uploads\/[a-f0-9]{32}\.(jpg|png|gif)$/.test(value);
+}
+
+// Removes an uploaded image file from disk. Used when the message
+// it belonged to drops out of the last-5 window.
+function deleteUploadedImage(imageUrl) {
+  if (!isUploadedImageUrl(imageUrl)) {
+    return;
+  }
+  fs.unlink(path.join(UPLOAD_DIR, path.basename(imageUrl)), () => {});
+}
 
 // Socket.io needs a raw Node HTTP server to attach to -- Express's
 // app object alone isn't enough, since sockets work at a lower
@@ -513,6 +578,33 @@ app.get('/api/messages', async (req, res) => {
   ));
 });
 
+// --- Image upload ---
+
+// Accepts one image in the form field "image", checks it, saves it
+// under a random name and answers with the path to store in a
+// message.
+app.post('/api/upload', (req, res) => {
+  imageUpload.single('image')(req, res, async (err) => {
+    if (err) {
+      const message = err.code === 'LIMIT_FILE_SIZE' ? IMAGE_SIZE_MESSAGE : 'The image could not be uploaded.';
+      return res.status(400).json({ message });
+    }
+    // No file means none was sent, or the filter turned it away
+    // because of its declared type.
+    if (!req.file) {
+      return res.status(400).json({ message: IMAGE_TYPE_MESSAGE });
+    }
+    const realType = detectImageType(req.file.buffer);
+    if (!realType) {
+      return res.status(400).json({ message: IMAGE_TYPE_MESSAGE });
+    }
+
+    const fileName = crypto.randomBytes(16).toString('hex') + IMAGE_EXTENSIONS[realType];
+    await fs.promises.writeFile(path.join(UPLOAD_DIR, fileName), req.file.buffer);
+    res.status(201).json({ imageUrl: '/uploads/' + fileName });
+  });
+});
+
 // --- Sockets ---
 
 io.on('connection', (socket) => {
@@ -570,6 +662,17 @@ io.on('connection', (socket) => {
   }
 
   const toSave = { ...message, senderId: userId };
+
+  // An image is kept only if it is a path this server handed out.
+  // A message needs some text or an image; an empty one is dropped.
+  if (!isUploadedImageUrl(toSave.imageUrl)) {
+    delete toSave.imageUrl;
+  }
+  const hasText = typeof toSave.text === 'string' && toSave.text.trim() !== '';
+  if (!hasText && !toSave.imageUrl) {
+    return;
+  }
+
   const result = await getDb().collection('messages').insertOne(toSave);
   const saved = { ...toSave, id: result.insertedId.toString() };
   io.to(message.channelId).emit('newMessage', saved);
@@ -583,8 +686,14 @@ io.on('connection', (socket) => {
     .toArray();
 
   if (allForChannel.length > 5) {
-    const idsToDelete = allForChannel.slice(0, allForChannel.length - 5).map(m => m._id);
+    const oldMessages = allForChannel.slice(0, allForChannel.length - 5);
+    const idsToDelete = oldMessages.map(m => m._id);
     await getDb().collection('messages').deleteMany({ _id: { $in: idsToDelete } });
+    // An image whose message is gone would never be shown again,
+    // so remove its file too.
+    for (const oldMessage of oldMessages) {
+      deleteUploadedImage(oldMessage.imageUrl);
+    }
   }
 });
 
