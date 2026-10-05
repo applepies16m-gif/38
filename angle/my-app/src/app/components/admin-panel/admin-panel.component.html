@@ -1,7 +1,7 @@
 <div class="admin-page">
 
   <div class="top-bar">
-    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <img src="fabulari-logo-small.png" alt="Fabulari" class="brand-logo-img" />
     <span class="admin-title">Admin Control Panel</span>
     <a routerLink="/audit-log" class="back-link">Audit Log</a>
     <button type="button" (click)="logout()" class="link-button back-link">Log Out</button>
@@ -70,8 +70,8 @@
         <input type="text" placeholder="First name" [(ngModel)]="newFirstName" aria-label="First name" />
         <input type="text" placeholder="Last name" [(ngModel)]="newLastName" aria-label="Last name" />
         <input type="text" placeholder="Email" [(ngModel)]="newEmail" aria-label="Email" />
-        <input type="text" placeholder="Display name (optional)" [(ngModel)]="newDisplayName" aria-label="Display name (optional)" />
-        <input type="password" placeholder="Password (8+ characters, 1 uppercase)" [(ngModel)]="newPassword" aria-label="Password (8+ characters, 1 uppercase)" />
+        <input type="text" placeholder="Display name" title="Optional. Left empty, the first and last name are used" [(ngModel)]="newDisplayName" aria-label="Display name (optional)" />
+        <input type="password" placeholder="Password" title="At least 8 characters, with an uppercase letter" [(ngModel)]="newPassword" aria-label="Password: at least 8 characters, with an uppercase letter" />
         <label>
           Date of birth (optional)
           <input type="date" [(ngModel)]="newDateOfBirth" />
@@ -93,7 +93,7 @@
           <tbody>
             <tr *ngFor="let g of groups">
               <td>{{ g.title }}</td>
-              <td>{{ g.channelIds.length }} channel(s)</td>
+              <td>{{ channelCount(g.id) }} channel(s)</td>
             </tr>
           </tbody>
         </table>

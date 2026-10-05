@@ -7,7 +7,7 @@ import { environment } from '../../environments/environment';
 const API_URL = `${environment.serverUrl}/api/reports`;
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class ReportService {
   constructor(private http: HttpClient) {}
@@ -28,7 +28,11 @@ export class ReportService {
   }
 
   // Records the Super Admin's decision on a report.
-  decideReport(id: string, status: 'resolved' | 'dismissed', decisionNote: string): Observable<void> {
+  decideReport(
+    id: string,
+    status: 'resolved' | 'dismissed',
+    decisionNote: string,
+  ): Observable<void> {
     return this.http.put<void>(`${API_URL}/${id}`, { status, decisionNote });
   }
 }

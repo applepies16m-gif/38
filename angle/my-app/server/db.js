@@ -18,6 +18,8 @@ async function connectToDatabase() {
   return db;
 }
 
+// Returns the open database connection. Every route calls this
+// instead of connecting again.
 function getDb() {
   if (!db) {
     throw new Error('Database not connected yet -- call connectToDatabase() first.');

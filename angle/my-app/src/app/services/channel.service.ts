@@ -7,15 +7,17 @@ import { environment } from '../../environments/environment';
 const API_URL = `${environment.serverUrl}/api/channels`;
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class ChannelService {
   constructor(private http: HttpClient) {}
 
+  // Every channel, in every group.
   getChannels(): Observable<Channel[]> {
     return this.http.get<Channel[]>(API_URL);
   }
 
+  // Adds a channel to a group.
   createChannel(channel: Partial<Channel>): Observable<Channel> {
     return this.http.post<Channel>(API_URL, channel);
   }

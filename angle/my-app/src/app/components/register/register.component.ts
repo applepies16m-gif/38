@@ -12,7 +12,7 @@ import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './register.component.html',
-  styleUrl: './register.component.css'
+  styleUrl: './register.component.css',
 })
 export class RegisterComponent {
   firstName = '';
@@ -29,16 +29,26 @@ export class RegisterComponent {
     private userService: UserService,
     private authService: AuthService,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
+  // True if the password meets the rule: 8 or more characters with an
+  // uppercase letter.
   get passwordIsValid(): boolean {
     return this.password.length >= 8 && /[A-Z]/.test(this.password);
   }
 
+  // Checks the form, then asks the server to create the account, logs
+  // the new user in and opens Chat.
   onRegister(): void {
-    if (!this.firstName.trim() || !this.lastName.trim() || !this.username.trim() ||
-        !this.email.trim() || !this.dateOfBirth || !this.password) {
+    if (
+      !this.firstName.trim() ||
+      !this.lastName.trim() ||
+      !this.username.trim() ||
+      !this.email.trim() ||
+      !this.dateOfBirth ||
+      !this.password
+    ) {
       this.errorMsg = 'Please fill in every field (display name is optional).';
       return;
     }
@@ -73,21 +83,20 @@ export class RegisterComponent {
       online: true,
       groupIds: [],
       bannedFromGroupIds: [],
-      isSystemBanned: false
+      isSystemBanned: false,
     };
 
     this.userService.createUser(newUser).subscribe({
       next: (createdUser) => {
         this.authService.login(createdUser);
-        this.router.navigate(['/chat'], {
-          queryParams: { role: createdUser.role, user: createdUser.username, hasGroups: false }
-        });
+        this.router.navigate(['/chat']);
       },
       error: (err) => {
         // Show the server's own reason when it gives one.
-        this.errorMsg = err.error?.message || 'Registration failed — that username may already be taken.';
+        this.errorMsg =
+          err.error?.message || 'Registration failed — that username may already be taken.';
         this.cdr.markForCheck();
-      }
+      },
     });
   }
 }

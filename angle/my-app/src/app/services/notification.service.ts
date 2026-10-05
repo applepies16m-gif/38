@@ -9,7 +9,7 @@ const API_BASE = `${environment.serverUrl}/api`;
 // Talks to the server about the two things only the Super Admin
 // produces: one-way notifications, and the audit log.
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class NotificationService {
   constructor(private http: HttpClient) {}
@@ -26,8 +26,16 @@ export class NotificationService {
   }
 
   // Sends a notification. recipientId null means everyone.
-  sendNotification(sentBy: string, message: string, recipientId: string | null): Observable<AppNotification> {
-    return this.http.post<AppNotification>(`${API_BASE}/notifications`, { sentBy, message, recipientId });
+  sendNotification(
+    sentBy: string,
+    message: string,
+    recipientId: string | null,
+  ): Observable<AppNotification> {
+    return this.http.post<AppNotification>(`${API_BASE}/notifications`, {
+      sentBy,
+      message,
+      recipientId,
+    });
   }
 
   // Tells the server this user has opened their notifications, so
@@ -40,9 +48,15 @@ export class NotificationService {
   // type, and from/to dates written as YYYY-MM-DD.
   getAuditLog(type: string, from: string, to: string): Observable<AuditEntry[]> {
     const params: Record<string, string> = {};
-    if (type) { params['type'] = type; }
-    if (from) { params['from'] = from; }
-    if (to) { params['to'] = to; }
+    if (type) {
+      params['type'] = type;
+    }
+    if (from) {
+      params['from'] = from;
+    }
+    if (to) {
+      params['to'] = to;
+    }
     return this.http.get<AuditEntry[]>(`${API_BASE}/audit-log`, { params });
   }
 }

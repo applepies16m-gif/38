@@ -22,21 +22,21 @@ export default defineConfig({
     // Use the Microsoft Edge already installed on this computer,
     // which avoids downloading a separate browser.
     channel: 'msedge',
-    trace: 'retain-on-failure'
+    trace: 'retain-on-failure',
   },
   webServer: [
     {
       command: 'node e2e/start-test-server.js',
       url: 'http://localhost:3100/api/bootstrap-status',
       reuseExistingServer: false,
-      timeout: 60_000
+      timeout: 60_000,
     },
     {
       command: 'npx ng serve --configuration e2e --port 4300',
       url: 'http://localhost:4300',
       reuseExistingServer: false,
       timeout: 240_000,
-      env: { NG_CLI_ANALYTICS: 'false' }
-    }
-  ]
+      env: { NG_CLI_ANALYTICS: 'false' },
+    },
+  ],
 });

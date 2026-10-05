@@ -7,5 +7,5 @@
 // test server so they never touch real data. The swap is set up in
 // angular.json under the "e2e" configuration.
 export const environment = {
-  serverUrl: 'http://localhost:3000'
+  serverUrl: 'http://localhost:3000',
 };

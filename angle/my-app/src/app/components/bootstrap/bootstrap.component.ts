@@ -1,7 +1,7 @@
 import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { UserService } from '../../services/user.service';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
@@ -10,9 +10,9 @@ import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of
 @Component({
   selector: 'app-bootstrap',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule],
   templateUrl: './bootstrap.component.html',
-  styleUrl: './bootstrap.component.css'
+  styleUrl: './bootstrap.component.css',
 })
 export class BootstrapComponent {
   firstName = '';
@@ -29,16 +29,26 @@ export class BootstrapComponent {
     private userService: UserService,
     private authService: AuthService,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
+  // True if the password meets the rule: 8 or more characters with an
+  // uppercase letter.
   get passwordIsValid(): boolean {
     return this.password.length >= 8 && /[A-Z]/.test(this.password);
   }
 
+  // Checks the form, then asks the server to create the first Super
+  // Admin and opens the Admin Panel.
   onBootstrap(): void {
-    if (!this.firstName.trim() || !this.lastName.trim() || !this.username.trim() ||
-        !this.email.trim() || !this.dateOfBirth || !this.password) {
+    if (
+      !this.firstName.trim() ||
+      !this.lastName.trim() ||
+      !this.username.trim() ||
+      !this.email.trim() ||
+      !this.dateOfBirth ||
+      !this.password
+    ) {
       this.errorMsg = 'Please fill in every field (display name is optional).';
       return;
     }
@@ -71,7 +81,7 @@ export class BootstrapComponent {
       online: true,
       groupIds: [],
       bannedFromGroupIds: [],
-      isSystemBanned: false
+      isSystemBanned: false,
     };
 
     this.userService.bootstrapSuperAdmin(newSuperAdmin).subscribe({
@@ -84,11 +94,12 @@ export class BootstrapComponent {
         // user get created since this page loaded -- e.g. someone
         // else bootstrapped it a moment ago. For anything else, show
         // the server's own reason when it gives one.
-        this.errorMsg = err.status === 403
-          ? 'Setup has already been completed by someone else.'
-          : (err.error?.message || 'Something went wrong creating the admin account.');
+        this.errorMsg =
+          err.status === 403
+            ? 'Setup has already been completed by someone else.'
+            : err.error?.message || 'Something went wrong creating the admin account.';
         this.cdr.markForCheck();
-      }
+      },
     });
   }
 }

@@ -8,7 +8,7 @@ const { startTestServer, wait, ObjectId } = require('./helpers');
 let server;
 let admin, alice, bob, outsider;
 let group, channelId;
-const open = [];   // sockets to close at the end
+const open = []; // sockets to close at the end
 
 // Opens a socket that has identified as a user and joined the channel.
 async function joined(user) {
@@ -21,7 +21,13 @@ async function joined(user) {
   return client;
 }
 
-const message = (text, extra = {}) => ({ channelId, senderName: 'someone', text, timestamp: new Date().toISOString(), ...extra });
+const message = (text, extra = {}) => ({
+  channelId,
+  senderName: 'someone',
+  text,
+  timestamp: new Date().toISOString(),
+  ...extra,
+});
 const storedMessages = () => server.db.collection('messages').countDocuments({ channelId });
 
 before(async () => {
@@ -52,27 +58,36 @@ test('a user who is not a member is refused, and nobody is told they joined', as
   await wait(250);
 
   assert.equal(stranger.count('channelDenied'), 1);
-  assert.equal(watcher.count('userJoined', e => e.username === 'outsider'), 0);
+  assert.equal(
+    watcher.count('userJoined', (e) => e.username === 'outsider'),
+    0,
+  );
 
   // Leaving or closing afterwards must not announce a departure either.
   stranger.emit('leaveChannel', { channelId });
   await wait(150);
   stranger.close();
   await wait(250);
-  assert.equal(watcher.count('userLeft', e => e.username === 'outsider'), 0);
+  assert.equal(
+    watcher.count('userLeft', (e) => e.username === 'outsider'),
+    0,
+  );
   watcher.close();
 });
 
 test('members exchange messages, and the sender id is the one the socket joined as', async () => {
   const a = await joined(alice);
   const b = await joined(bob);
-  assert.equal(a.count('userJoined', e => e.userId === bob.id), 1);
+  assert.equal(
+    a.count('userJoined', (e) => e.userId === bob.id),
+    1,
+  );
 
   // Bob claims to be Alice inside the message; the server ignores that.
   b.emit('sendMessage', message('hello from bob', { senderId: alice.id }));
   await wait(300);
 
-  const received = a.events.find(e => e.event === 'newMessage');
+  const received = a.events.find((e) => e.event === 'newMessage');
   assert.ok(received, 'alice should receive the message');
   assert.equal(received.text, 'hello from bob');
   assert.equal(received.senderId, bob.id);
@@ -103,10 +118,16 @@ test('only the last 5 messages of a channel are kept, and history returns them o
   assert.equal(await storedMessages(), 5);
 
   const history = await server.api('GET', `/messages?channelId=${channelId}&userId=${alice.id}`);
-  assert.deepEqual(history.body.map(m => m.text), ['message 3', 'message 4', 'message 5', 'message 6', 'message 7']);
+  assert.deepEqual(
+    history.body.map((m) => m.text),
+    ['message 3', 'message 4', 'message 5', 'message 6', 'message 7'],
+  );
 
   // Someone who is not a member gets nothing, as does a request with no user id.
-  assert.deepEqual((await server.api('GET', `/messages?channelId=${channelId}&userId=${outsider.id}`)).body, []);
+  assert.deepEqual(
+    (await server.api('GET', `/messages?channelId=${channelId}&userId=${outsider.id}`)).body,
+    [],
+  );
   assert.deepEqual((await server.api('GET', `/messages?channelId=${channelId}`)).body, []);
   a.close();
 });
@@ -121,23 +142,29 @@ test('an empty message is dropped', async () => {
   a.close();
 });
 
-test('a user can delete their own message, live for everyone, but not someone else\'s', async () => {
+test("a user can delete their own message, live for everyone, but not someone else's", async () => {
   const a = await joined(alice);
   const b = await joined(bob);
   a.emit('sendMessage', message('delete me'));
   await wait(300);
-  const sent = a.events.find(e => e.event === 'newMessage' && e.text === 'delete me');
+  const sent = a.events.find((e) => e.event === 'newMessage' && e.text === 'delete me');
   const before = await storedMessages();
 
   b.emit('deleteMessage', { messageId: sent.id });
   await wait(250);
-  assert.equal(await storedMessages(), before, 'bob must not be able to delete alice\'s message');
+  assert.equal(await storedMessages(), before, "bob must not be able to delete alice's message");
 
   a.emit('deleteMessage', { messageId: sent.id });
   await wait(300);
   assert.equal(await storedMessages(), before - 1);
-  assert.equal(a.count('messageDeleted', e => e.id === sent.id), 1);
-  assert.equal(b.count('messageDeleted', e => e.id === sent.id), 1);
+  assert.equal(
+    a.count('messageDeleted', (e) => e.id === sent.id),
+    1,
+  );
+  assert.equal(
+    b.count('messageDeleted', (e) => e.id === sent.id),
+    1,
+  );
 
   // Nothing is loaded to fill the gap.
   const history = await server.api('GET', `/messages?channelId=${channelId}&userId=${bob.id}`);
@@ -150,7 +177,13 @@ test('bad payloads on any socket event do not crash the server', async () => {
   const client = server.connect();
   open.push(client);
   await wait(150);
-  for (const eventName of ['identify', 'joinChannel', 'leaveChannel', 'sendMessage', 'deleteMessage']) {
+  for (const eventName of [
+    'identify',
+    'joinChannel',
+    'leaveChannel',
+    'sendMessage',
+    'deleteMessage',
+  ]) {
     client.emit(eventName, null);
     client.emit(eventName, 'text');
     client.emit(eventName, 42);
@@ -167,7 +200,8 @@ test('a user is online while at least one of their tabs is open', async () => {
   const tab2 = server.connect();
   open.push(watcher, tab1, tab2);
   await wait(200);
-  const isOnline = async () => (await server.api('GET', '/users')).body.find(u => u.id === outsider.id).online;
+  const isOnline = async () =>
+    (await server.api('GET', '/users')).body.find((u) => u.id === outsider.id).online;
 
   assert.equal(await isOnline(), false);
   tab1.emit('identify', { userId: outsider.id });
@@ -175,17 +209,27 @@ test('a user is online while at least one of their tabs is open', async () => {
   assert.equal(await isOnline(), true);
   tab2.emit('identify', { userId: outsider.id });
   await wait(250);
-  assert.equal(watcher.count('presenceChanged', e => e.userId === outsider.id && e.online), 1, 'announced once, not per tab');
+  assert.equal(
+    watcher.count('presenceChanged', (e) => e.userId === outsider.id && e.online),
+    1,
+    'announced once, not per tab',
+  );
 
   tab1.close();
   await wait(300);
   assert.equal(await isOnline(), true, 'still online with one tab left');
-  assert.equal(watcher.count('presenceChanged', e => e.userId === outsider.id && !e.online), 0);
+  assert.equal(
+    watcher.count('presenceChanged', (e) => e.userId === outsider.id && !e.online),
+    0,
+  );
 
   tab2.close();
   await wait(300);
   assert.equal(await isOnline(), false);
-  assert.equal(watcher.count('presenceChanged', e => e.userId === outsider.id && !e.online), 1);
+  assert.equal(
+    watcher.count('presenceChanged', (e) => e.userId === outsider.id && !e.online),
+    1,
+  );
   watcher.close();
 });
 
@@ -197,7 +241,10 @@ test('signing out marks the user offline even though the tab stays open', async 
   await wait(250);
   tab.emit('signOut');
   await wait(250);
-  assert.equal((await server.api('GET', '/users')).body.find(u => u.id === outsider.id).online, false);
+  assert.equal(
+    (await server.api('GET', '/users')).body.find((u) => u.id === outsider.id).online,
+    false,
+  );
   tab.close();
 });
 
@@ -207,7 +254,10 @@ test('a member banned from the group is removed from the open channel straight a
   const v = await joined(victim);
   const a = await joined(alice);
 
-  const ban = await server.api('PUT', '/users/' + victim.id, { groupIds: [], bannedFromGroupIds: [group.id] });
+  const ban = await server.api('PUT', '/users/' + victim.id, {
+    groupIds: [],
+    bannedFromGroupIds: [group.id],
+  });
   assert.equal(ban.status, 204);
   await wait(400);
   assert.equal(v.count('channelDenied'), 1, 'told at once, without sending anything');
@@ -215,7 +265,7 @@ test('a member banned from the group is removed from the open channel straight a
 
   a.emit('sendMessage', message('after the ban'));
   await wait(300);
-  assert.equal(v.count('newMessage'), 0, 'no longer receives the channel\'s messages');
+  assert.equal(v.count('newMessage'), 0, "no longer receives the channel's messages");
   assert.equal(a.count('newMessage'), 1);
 
   // And they cannot rejoin.
@@ -233,7 +283,10 @@ test('closing a tab tells the channel the user left, exactly once', async () => 
   await wait(250);
   b.close();
   await wait(300);
-  assert.equal(a.count('userLeft', e => e.userId === bob.id), 1);
+  assert.equal(
+    a.count('userLeft', (e) => e.userId === bob.id),
+    1,
+  );
   a.close();
 });
 

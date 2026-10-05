@@ -90,7 +90,9 @@ test('5. the user sends a message in the group, sees it, and deletes it', async 
   await page.getByRole('button', { name: '# general' }).click();
   await expect(page.getByRole('heading', { name: '# general' })).toBeVisible();
   // Online Now lists the group's members; Alice is online.
-  await expect(page.locator('.user-row').filter({ hasText: 'Alice Tester' })).toContainText('online');
+  await expect(page.locator('.user-row').filter({ hasText: 'Alice Tester' })).toContainText(
+    'online',
+  );
 
   const text = 'Hello from the end-to-end test';
   await page.getByLabel('Write a message').fill(text);
@@ -105,12 +107,12 @@ test('5. the user sends a message in the group, sees it, and deletes it', async 
   await expect(page.getByRole('log').getByText(text)).toBeVisible();
 
   // Deleting your own message removes it. The app asks first.
-  page.once('dialog', dialog => dialog.accept());
+  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('log').getByRole('button', { name: 'delete' }).click();
   await expect(page.getByRole('log').getByText(text)).toHaveCount(0);
 });
 
-test('6. a member cannot open the Super Admin\'s pages', async ({ page }) => {
+test("6. a member cannot open the Super Admin's pages", async ({ page }) => {
   await logIn(page, 'alice');
   await expect(page).toHaveURL(/\/chat/);
   await page.goto('/admin');

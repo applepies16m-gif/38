@@ -3,8 +3,8 @@ import { Injectable } from '@angular/core';
 // A user's own look for the site, chosen with the sliders on My
 // Profile and saved on their account.
 export interface Appearance {
-  textScale: number;  // size of the whole interface, as a percentage (100 = normal)
-  hue: number;        // the site's main colour as a position on the colour wheel, 0 to 360
+  textScale: number; // size of the whole interface, as a percentage (100 = normal)
+  hue: number; // the site's main colour as a position on the colour wheel, 0 to 360
 }
 
 // The standard look. 221 is the hue of the site's own blue.
@@ -13,7 +13,7 @@ export const DEFAULT_APPEARANCE: Appearance = { textScale: 100, hue: 221 };
 // The limits of the two sliders. The server enforces the same ones.
 export const APPEARANCE_LIMITS = {
   textScale: { min: 90, max: 140, step: 5 },
-  hue: { min: 0, max: 360, step: 1 }
+  hue: { min: 0, max: 360, step: 1 },
 };
 
 // The CSS variables that hold the site's main colour, each with
@@ -26,7 +26,7 @@ const COLOUR_SHADES: { variable: string; saturation: number; lightness: number }
   { variable: '--chrome-blue-light', saturation: 40, lightness: 48 },
   { variable: '--chrome-blue-lighter', saturation: 33, lightness: 50 },
   { variable: '--chrome-blue-mid', saturation: 34, lightness: 46 },
-  { variable: '--panel-border', saturation: 38, lightness: 79 }
+  { variable: '--panel-border', saturation: 38, lightness: 79 },
 ];
 
 // White text sits on the main colour (the top bar, primary
@@ -59,10 +59,14 @@ export function darkeningForHue(hue: number): number {
   // The check is made on the lightest shade that white text sits on
   // (the top of a primary button). If that one is readable, the
   // darker shades are too.
-  const lightest = COLOUR_SHADES.find(shade => shade.variable === '--chrome-blue-lighter') || COLOUR_SHADES[0];
+  const lightest =
+    COLOUR_SHADES.find((shade) => shade.variable === '--chrome-blue-lighter') || COLOUR_SHADES[0];
   let darkening = 0;
-  while (darkening < lightest.lightness &&
-         1.05 / (relativeLuminance(hue, lightest.saturation, lightest.lightness - darkening) + 0.05) < MIN_CONTRAST_WITH_WHITE) {
+  while (
+    darkening < lightest.lightness &&
+    1.05 / (relativeLuminance(hue, lightest.saturation, lightest.lightness - darkening) + 0.05) <
+      MIN_CONTRAST_WITH_WHITE
+  ) {
     darkening = darkening + 1;
   }
   return darkening;
@@ -73,10 +77,9 @@ export function darkeningForHue(hue: number): number {
 // its colours from those variables, so changing them here recolours
 // every page at once without touching any component.
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class AppearanceService {
-
   // Applies the given appearance, or puts the standard look back
   // if there is none (nobody logged in, or nothing chosen yet).
   apply(appearance?: Partial<Appearance> | null): void {
@@ -94,27 +97,45 @@ export class AppearanceService {
       if (chosen.hue === DEFAULT_APPEARANCE.hue) {
         root.style.removeProperty(shade.variable);
       } else {
-        const lightness = shade.variable === '--panel-border' ? shade.lightness : shade.lightness - darkening;
-        root.style.setProperty(shade.variable, `hsl(${chosen.hue}, ${shade.saturation}%, ${lightness}%)`);
+        const lightness =
+          shade.variable === '--panel-border' ? shade.lightness : shade.lightness - darkening;
+        root.style.setProperty(
+          shade.variable,
+          `hsl(${chosen.hue}, ${shade.saturation}%, ${lightness}%)`,
+        );
       }
     }
 
     // Size: zoom scales text and layout together, like the
     // browser's own zoom, so nothing overlaps at larger sizes.
-    document.body.style.setProperty('zoom', chosen.textScale === 100 ? '' : String(chosen.textScale / 100));
+    document.body.style.setProperty(
+      'zoom',
+      chosen.textScale === 100 ? '' : String(chosen.textScale / 100),
+    );
   }
 
   // Returns a complete, in-range appearance from whatever was
   // stored. Anything missing or out of range falls back to the
   // standard value, so bad data can never break the page.
   clean(appearance?: Partial<Appearance> | null): Appearance {
-    const inRange = (value: unknown, limits: { min: number; max: number }, fallback: number): number =>
-      typeof value === 'number' && Number.isFinite(value) && value >= limits.min && value <= limits.max
+    const inRange = (
+      value: unknown,
+      limits: { min: number; max: number },
+      fallback: number,
+    ): number =>
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value >= limits.min &&
+      value <= limits.max
         ? Math.round(value)
         : fallback;
     return {
-      textScale: inRange(appearance?.textScale, APPEARANCE_LIMITS.textScale, DEFAULT_APPEARANCE.textScale),
-      hue: inRange(appearance?.hue, APPEARANCE_LIMITS.hue, DEFAULT_APPEARANCE.hue)
+      textScale: inRange(
+        appearance?.textScale,
+        APPEARANCE_LIMITS.textScale,
+        DEFAULT_APPEARANCE.textScale,
+      ),
+      hue: inRange(appearance?.hue, APPEARANCE_LIMITS.hue, DEFAULT_APPEARANCE.hue),
     };
   }
 }

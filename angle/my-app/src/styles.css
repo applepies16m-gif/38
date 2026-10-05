@@ -253,3 +253,29 @@ h1, h2, h3 {
     transition: none !important;
   }
 }
+
+/* ---- Fixes found by looking at the finished pages ---- */
+
+/* A form control's width includes its padding and border, so one
+   set to 100% fits inside its panel instead of poking out. */
+input,
+textarea,
+select {
+  box-sizing: border-box;
+}
+
+/* A button that can't be used looks faded, and the pointer doesn't
+   turn into a hand over it. */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Buttons side by side with a little space between them. */
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}

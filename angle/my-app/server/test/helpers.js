@@ -19,7 +19,7 @@ const { io } = require('socket.io-client');
 const PASSWORD = 'Testing123';
 
 // Pauses for a moment, to let a socket event arrive.
-const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Starts a test server. name keeps this file's database separate
 // from the other test files'; port must be different for each file,
@@ -42,15 +42,18 @@ async function startTestServer(name, port) {
       DB_NAME: dbName,
       UPLOAD_DIR: uploadDir,
       BACKUP_DIR: path.join(tempDir, 'backups'),
-      CLIENT_ORIGIN: '*'
-    }
+      CLIENT_ORIGIN: '*',
+    },
   });
 
   // The server prints "running on" once it is ready for requests.
   await new Promise((resolve, reject) => {
     let output = '';
-    const timer = setTimeout(() => reject(new Error('Test server did not start in time:\n' + output)), 20000);
-    const onData = data => {
+    const timer = setTimeout(
+      () => reject(new Error('Test server did not start in time:\n' + output)),
+      20000,
+    );
+    const onData = (data) => {
       output += data;
       if (output.includes('running on')) {
         clearTimeout(timer);
@@ -59,7 +62,9 @@ async function startTestServer(name, port) {
     };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
-    child.on('exit', code => reject(new Error('Test server stopped early (code ' + code + '):\n' + output)));
+    child.on('exit', (code) =>
+      reject(new Error('Test server stopped early (code ' + code + '):\n' + output)),
+    );
   });
 
   const base = `http://localhost:${port}`;
@@ -75,7 +80,7 @@ async function startTestServer(name, port) {
     const response = await fetch(base + '/api' + route, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
     let parsed = null;
     try {
@@ -98,10 +103,12 @@ async function startTestServer(name, port) {
       lastName: username,
       email: `${username}${counter}@example.com`,
       dateOfBirth: '1995-05-05',
-      ...extra
+      ...extra,
     });
     if (response.status !== 201) {
-      throw new Error(`Could not register ${username}: ${response.status} ${JSON.stringify(response.body)}`);
+      throw new Error(
+        `Could not register ${username}: ${response.status} ${JSON.stringify(response.body)}`,
+      );
     }
     return response.body;
   }
@@ -110,14 +117,18 @@ async function startTestServer(name, port) {
   async function createGroup(title, adminIds, extra = {}) {
     const response = await api('POST', '/groups', { title, adminIds, ...extra });
     if (response.status !== 201) {
-      throw new Error(`Could not create group ${title}: ${response.status} ${JSON.stringify(response.body)}`);
+      throw new Error(
+        `Could not create group ${title}: ${response.status} ${JSON.stringify(response.body)}`,
+      );
     }
     return response.body;
   }
 
   // Puts a user straight into a group, as an approved join would.
   async function addToGroup(userId, groupId) {
-    await db.collection('users').updateOne({ _id: new ObjectId(userId) }, { $addToSet: { groupIds: groupId } });
+    await db
+      .collection('users')
+      .updateOne({ _id: new ObjectId(userId) }, { $addToSet: { groupIds: groupId } });
   }
 
   // The id of a group's first channel ("general").
@@ -136,18 +147,28 @@ async function startTestServer(name, port) {
   function connect() {
     const socket = io(base, { forceNew: true });
     const events = [];
-    const names = ['newMessage', 'messageDeleted', 'userJoined', 'userLeft', 'channelDenied',
-      'presenceChanged', 'membershipChanged', 'channelDeleted', 'notification'];
+    const names = [
+      'newMessage',
+      'messageDeleted',
+      'userJoined',
+      'userLeft',
+      'channelDenied',
+      'presenceChanged',
+      'membershipChanged',
+      'channelDeleted',
+      'notification',
+    ];
     for (const eventName of names) {
-      socket.on(eventName, data => events.push({ event: eventName, ...(data || {}) }));
+      socket.on(eventName, (data) => events.push({ event: eventName, ...(data || {}) }));
     }
     return {
       socket,
       events,
       emit: (eventName, data) => socket.emit(eventName, data),
       // How many events of this name arrived (optionally only those matching a test).
-      count: (eventName, matches = () => true) => events.filter(e => e.event === eventName && matches(e)).length,
-      close: () => socket.disconnect()
+      count: (eventName, matches = () => true) =>
+        events.filter((e) => e.event === eventName && matches(e)).length,
+      close: () => socket.disconnect(),
     };
   }
 
@@ -159,7 +180,19 @@ async function startTestServer(name, port) {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 
-  return { base, api, db, register, createGroup, addToGroup, firstChannelId, userInDb, connect, stop, uploadDir };
+  return {
+    base,
+    api,
+    db,
+    register,
+    createGroup,
+    addToGroup,
+    firstChannelId,
+    userInDb,
+    connect,
+    stop,
+    uploadDir,
+  };
 }
 
 module.exports = { startTestServer, wait, PASSWORD, ObjectId };

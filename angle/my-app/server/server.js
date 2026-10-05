@@ -44,7 +44,7 @@ const imageUpload = multer({
   limits: { fileSize: MAX_IMAGE_BYTES, files: 1 },
   fileFilter: (req, file, callback) => {
     callback(null, Boolean(IMAGE_EXTENSIONS[file.mimetype]));
-  }
+  },
 });
 
 // Works out what kind of image a file really is from its first
@@ -52,8 +52,8 @@ const imageUpload = multer({
 // declares can be faked, so this is what the server trusts.
 // Returns the type, or null if it is none of the three allowed.
 function detectImageType(buffer) {
-  const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-  if (buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+  const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
     return 'image/jpeg';
   }
   if (buffer.length >= 8 && buffer.subarray(0, 8).equals(pngSignature)) {
@@ -88,9 +88,11 @@ function deleteUploadedImage(imageUrl) {
 // level than a single request/response cycle.
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CLIENT_ORIGIN }
+  cors: { origin: CLIENT_ORIGIN },
 });
 
+// Turns a MongoDB document into what the browser expects: the same
+// fields, with MongoDB's _id replaced by a text field called id.
 function toClientShape(doc) {
   const { _id, ...rest } = doc;
   return { ...rest, id: _id.toString() };
@@ -119,6 +121,7 @@ function userRoom(userId) {
   return 'user:' + userId;
 }
 
+// True if the user has at least one browser tab connected.
 function isOnline(userId) {
   return (connectionsByUser.get(userId) || 0) > 0;
 }
@@ -185,12 +188,33 @@ function resolveTimestamp(doc) {
 
 // Fields a client may send when creating a user. The role, group
 // membership and ban flags are always set by the server instead.
-const USER_CREATE_FIELDS = ['username', 'password', 'firstName', 'lastName', 'displayName', 'email', 'dateOfBirth'];
+const USER_CREATE_FIELDS = [
+  'username',
+  'password',
+  'firstName',
+  'lastName',
+  'displayName',
+  'email',
+  'dateOfBirth',
+];
 
 // Fields a client may change on an existing user. The admin pages
 // change role and group membership through this same route, so
 // those have to stay on the list.
-const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth', 'profilePicUrl', 'isSystemBanned', 'appearance'];
+const USER_UPDATE_FIELDS = [
+  'username',
+  'password',
+  'displayName',
+  'role',
+  'groupIds',
+  'bannedFromGroupIds',
+  'dateOfBirth',
+  'profilePicUrl',
+  'isSystemBanned',
+  'appearance',
+  'bio',
+];
+const MAX_BIO_LENGTH = 500;
 
 // The limits of the two Appearance sliders on the Profile page:
 // interface size as a percentage, and the main colour as a hue on
@@ -206,11 +230,13 @@ const MAX_NAME_LENGTH = 50;
 const MAX_GROUP_TITLE_LENGTH = 30;
 const MAX_GROUP_DESCRIPTION_LENGTH = 250;
 const MAX_CHANNEL_NAME_LENGTH = 30;
-const PASSWORD_RULE_MESSAGE = 'Password must be at least 8 characters and include an uppercase letter.';
+const PASSWORD_RULE_MESSAGE =
+  'Password must be at least 8 characters and include an uppercase letter.';
 const SYSTEM_BANNED_MESSAGE = 'This account has been banned from the system.';
 
 // Shown when a date of birth fails calculateAge's rules.
-const INVALID_DATE_OF_BIRTH_MESSAGE = 'Date of birth must be a real date, not in the future and not more than 120 years ago.';
+const INVALID_DATE_OF_BIRTH_MESSAGE =
+  'Date of birth must be a real date, not in the future and not more than 120 years ago.';
 
 // Returns a copy of source holding only the named fields, so
 // anything else a client sends is ignored.
@@ -225,7 +251,8 @@ function pickFields(source, allowedFields) {
 }
 
 // Sent to a socket whose join or message was refused.
-const CHANNEL_DENIED_MESSAGE = 'You are not a member of this group, or you have been banned from it.';
+const CHANNEL_DENIED_MESSAGE =
+  'You are not a member of this group, or you have been banned from it.';
 
 // Decides whether a user may read and post in a channel: the
 // channel and user must exist, the user must not be banned from
@@ -239,8 +266,12 @@ async function canUseChannel(userId, channelId) {
   if (!ObjectId.isValid(userId) || !ObjectId.isValid(channelId)) {
     return false;
   }
-  const channel = await getDb().collection('channels').findOne({ _id: new ObjectId(channelId) });
-  const user = await getDb().collection('users').findOne({ _id: new ObjectId(userId) });
+  const channel = await getDb()
+    .collection('channels')
+    .findOne({ _id: new ObjectId(channelId) });
+  const user = await getDb()
+    .collection('users')
+    .findOne({ _id: new ObjectId(userId) });
   if (!channel || !user || user.isSystemBanned) {
     return false;
   }
@@ -272,7 +303,11 @@ function parseDateOfBirth(dateOfBirth) {
   // becomes 1 March), so if the parts read back differently the
   // date was never real.
   const built = new Date(Date.UTC(year, month - 1, day));
-  if (built.getUTCFullYear() !== year || built.getUTCMonth() !== month - 1 || built.getUTCDate() !== day) {
+  if (
+    built.getUTCFullYear() !== year ||
+    built.getUTCMonth() !== month - 1 ||
+    built.getUTCDate() !== day
+  ) {
     return null;
   }
   return { year, month, day };
@@ -288,8 +323,8 @@ function calculateAge(dateOfBirth) {
   }
   const today = new Date();
   const thisMonth = today.getMonth() + 1;
-  const birthdayPassed = thisMonth > parts.month ||
-    (thisMonth === parts.month && today.getDate() >= parts.day);
+  const birthdayPassed =
+    thisMonth > parts.month || (thisMonth === parts.month && today.getDate() >= parts.day);
 
   let age = today.getFullYear() - parts.year;
   if (!birthdayPassed) {
@@ -304,12 +339,16 @@ function calculateAge(dateOfBirth) {
 // Looks up the user and group for a join request. Either comes
 // back null if its id is malformed or nothing matches.
 async function findUserAndGroup(userId, groupId) {
-  const isId = value => typeof value === 'string' && ObjectId.isValid(value);
+  const isId = (value) => typeof value === 'string' && ObjectId.isValid(value);
   const user = isId(userId)
-    ? await getDb().collection('users').findOne({ _id: new ObjectId(userId) })
+    ? await getDb()
+        .collection('users')
+        .findOne({ _id: new ObjectId(userId) })
     : null;
   const group = isId(groupId)
-    ? await getDb().collection('groups').findOne({ _id: new ObjectId(groupId) })
+    ? await getDb()
+        .collection('groups')
+        .findOne({ _id: new ObjectId(groupId) })
     : null;
   return { user, group };
 }
@@ -331,7 +370,10 @@ function checkJoinAllowed(user, group) {
   if (group.ageLimit > 0) {
     const age = calculateAge(user.dateOfBirth);
     if (age === null) {
-      return { status: 403, message: `This group is for ages ${group.ageLimit}+ and the account has no valid date of birth.` };
+      return {
+        status: 403,
+        message: `This group is for ages ${group.ageLimit}+ and the account has no valid date of birth.`,
+      };
     }
     if (age < group.ageLimit) {
       return { status: 403, message: `This group is for ages ${group.ageLimit}+.` };
@@ -386,7 +428,7 @@ function isValidEmail(email) {
 
 // True for a list in which every item is text (a list of ids).
 function isListOfText(value) {
-  return Array.isArray(value) && value.every(item => typeof item === 'string');
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
 // Checks and tidies the details for a new account (register, the
@@ -394,7 +436,7 @@ function isListOfText(value) {
 // { fields } ready to store, or { status, message } for the first
 // problem found.
 async function prepareNewUser(body) {
-  const bad = message => ({ status: 400, message });
+  const bad = (message) => ({ status: 400, message });
   const fields = pickFields(body, USER_CREATE_FIELDS);
 
   fields.username = normaliseUsername(fields.username);
@@ -403,7 +445,10 @@ async function prepareNewUser(body) {
     return usernameProblem;
   }
 
-  for (const [name, label] of [['firstName', 'First name'], ['lastName', 'Last name']]) {
+  for (const [name, label] of [
+    ['firstName', 'First name'],
+    ['lastName', 'Last name'],
+  ]) {
     if (!isFilledText(fields[name])) {
       return bad(`${label} is required.`);
     }
@@ -451,7 +496,7 @@ async function prepareNewUser(body) {
 // place. existing is the stored user. Returns null if every change
 // is acceptable, or { status, message } for the first that isn't.
 async function checkUserUpdates(updates, existing) {
-  const bad = message => ({ status: 400, message });
+  const bad = (message) => ({ status: 400, message });
 
   // A changed username is stored in the same lower-case form login
   // looks it up in, and must not belong to another account.
@@ -517,6 +562,18 @@ async function checkUserUpdates(updates, existing) {
     return bad('A profile picture must be an image uploaded through the app.');
   }
 
+  // The "About Me" text is optional, but must be text and not too
+  // long. Surrounding spaces are trimmed off.
+  if (updates.bio !== undefined) {
+    if (typeof updates.bio !== 'string') {
+      return bad('About Me must be text.');
+    }
+    updates.bio = updates.bio.trim();
+    if (updates.bio.length > MAX_BIO_LENGTH) {
+      return bad(`About Me must be ${MAX_BIO_LENGTH} characters or fewer.`);
+    }
+  }
+
   // A user's chosen look for the site: exactly two whole numbers,
   // each within its slider's range. Only those two are stored,
   // whatever else was sent with them.
@@ -524,9 +581,12 @@ async function checkUserUpdates(updates, existing) {
     const appearance = updates.appearance;
     const isWholeNumberIn = (value, limits) =>
       Number.isInteger(value) && value >= limits.min && value <= limits.max;
-    if (appearance === null || typeof appearance !== 'object' ||
-        !isWholeNumberIn(appearance.textScale, APPEARANCE_LIMITS.textScale) ||
-        !isWholeNumberIn(appearance.hue, APPEARANCE_LIMITS.hue)) {
+    if (
+      appearance === null ||
+      typeof appearance !== 'object' ||
+      !isWholeNumberIn(appearance.textScale, APPEARANCE_LIMITS.textScale) ||
+      !isWholeNumberIn(appearance.hue, APPEARANCE_LIMITS.hue)
+    ) {
       return bad('Appearance must be a size from 90 to 140 and a colour from 0 to 360.');
     }
     updates.appearance = { textScale: appearance.textScale, hue: appearance.hue };
@@ -578,7 +638,8 @@ function checkGroupFields(fields, isNew) {
   // The age limit must be a whole number. 0 means no limit. A form
   // may send it as text ("15"), so it is converted to a number.
   if (fields.ageLimit !== undefined) {
-    const isNumberLike = typeof fields.ageLimit === 'number' ||
+    const isNumberLike =
+      typeof fields.ageLimit === 'number' ||
       (typeof fields.ageLimit === 'string' && fields.ageLimit.trim() !== '');
     const ageLimit = Number(fields.ageLimit);
     if (!isNumberLike || !Number.isInteger(ageLimit) || ageLimit < 0 || ageLimit > MAX_AGE_YEARS) {
@@ -607,6 +668,8 @@ app.get('/api/bootstrap-status', async (req, res) => {
   res.json({ needsBootstrap: userCount === 0 });
 });
 
+// Creates the first Super Admin. Works only while there are no users
+// at all, so it switches itself off after the first use.
 app.post('/api/bootstrap', async (req, res) => {
   const userCount = await getDb().collection('users').countDocuments();
   if (userCount > 0) {
@@ -626,7 +689,7 @@ app.post('/api/bootstrap', async (req, res) => {
     online: false,
     groupIds: [],
     bannedFromGroupIds: [],
-    isSystemBanned: false
+    isSystemBanned: false,
   };
   const result = await getDb().collection('users').insertOne(newSuperAdmin);
   res.status(201).json(toSafeUser({ ...newSuperAdmin, _id: result.insertedId }));
@@ -639,11 +702,15 @@ app.get('/api/users', async (req, res) => {
   res.json(users.map(toSafeUser));
 });
 
+// Logs a user in: finds them by username and checks the password
+// against the stored hash.
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body || {};
-  const user = await getDb().collection('users').findOne({
-    username: normaliseUsername(username)
-  });
+  const user = await getDb()
+    .collection('users')
+    .findOne({
+      username: normaliseUsername(username),
+    });
 
   // The typed password is hashed the same way and compared with
   // the stored hash; the server never holds the real password.
@@ -659,6 +726,8 @@ app.post('/api/login', async (req, res) => {
   res.json(toSafeUser(user));
 });
 
+// Creates an account. Used by the Register page and the Admin Panel
+// form.
 app.post('/api/users', async (req, res) => {
   const prepared = await prepareNewUser(req.body || {});
   if (prepared.message) {
@@ -673,13 +742,17 @@ app.post('/api/users', async (req, res) => {
     online: false,
     groupIds: [],
     bannedFromGroupIds: [],
-    isSystemBanned: false
+    isSystemBanned: false,
   };
   const result = await getDb().collection('users').insertOne(newUser);
   // Someone registering themself is not an admin action. When the
   // request comes from a logged-in user it is the Admin Panel form.
   if (await findUser(req.get('x-user-id'))) {
-    await logAdminAction(req, 'user_created', `Created the account "${newUser.username}" (${newUser.displayName})`);
+    await logAdminAction(
+      req,
+      'user_created',
+      `Created the account "${newUser.username}" (${newUser.displayName})`,
+    );
   }
   res.status(201).json(toSafeUser({ ...newUser, _id: result.insertedId }));
 });
@@ -705,18 +778,20 @@ app.delete('/api/users/:id', async (req, res) => {
   }
 
   const adminOf = await getDb().collection('groups').find({ adminIds: userId }).toArray();
-  const soleAdminOf = adminOf.filter(g => g.adminIds.length === 1);
+  const soleAdminOf = adminOf.filter((g) => g.adminIds.length === 1);
   if (soleAdminOf.length > 0) {
-    const titles = soleAdminOf.map(g => `"${g.title}"`).join(', ');
+    const titles = soleAdminOf.map((g) => `"${g.title}"`).join(', ');
     return res.status(409).json({
-      message: `${name} is the only admin of ${titles}. Appoint another admin for ${soleAdminOf.length === 1 ? 'that group' : 'each of those groups'} first.`
+      message: `${name} is the only admin of ${titles}. Appoint another admin for ${soleAdminOf.length === 1 ? 'that group' : 'each of those groups'} first.`,
     });
   }
 
   // Tidy up what pointed at this account: their place in any
   // group's admin list, their unanswered join requests, and their
   // profile picture file. Messages they sent are left in place.
-  await getDb().collection('groups').updateMany({ adminIds: userId }, { $pull: { adminIds: userId } });
+  await getDb()
+    .collection('groups')
+    .updateMany({ adminIds: userId }, { $pull: { adminIds: userId } });
   await getDb().collection('joinRequests').deleteMany({ userId, status: 'pending' });
   deleteUploadedImage(user.profilePicUrl);
 
@@ -724,11 +799,18 @@ app.delete('/api/users/:id', async (req, res) => {
   // Any tab still open as this user is put out of its channel and
   // told to re-read the account, which then logs it out.
   await enforceAccess(userId);
-  await logAdminAction(req, 'user_deleted',
-    req.get('x-user-id') === userId ? `${name} deleted their own account` : `Deleted the account of ${name} ("${user.username}")`);
+  await logAdminAction(
+    req,
+    'user_deleted',
+    req.get('x-user-id') === userId
+      ? `${name} deleted their own account`
+      : `Deleted the account of ${name} ("${user.username}")`,
+  );
   res.status(204).send();
 });
 
+// Changes fields on a user. Only the fields in USER_UPDATE_FIELDS
+// are accepted, and each is checked.
 app.put('/api/users/:id', async (req, res) => {
   const updates = pickFields(req.body || {}, USER_UPDATE_FIELDS);
   // MongoDB rejects an empty $set, so answer clearly instead.
@@ -737,7 +819,9 @@ app.put('/api/users/:id', async (req, res) => {
   }
 
   const existing = ObjectId.isValid(req.params.id)
-    ? await getDb().collection('users').findOne({ _id: new ObjectId(req.params.id) })
+    ? await getDb()
+        .collection('users')
+        .findOne({ _id: new ObjectId(req.params.id) })
     : null;
   if (!existing) {
     return res.status(404).json({ message: 'User not found.' });
@@ -755,20 +839,24 @@ app.put('/api/users/:id', async (req, res) => {
   // go through a request from another admin of the group, which
   // the Super Admin decides (see the ban-request routes).
   const leaving = updates.groupIds
-    ? (existing.groupIds || []).filter(id => !updates.groupIds.includes(id))
+    ? (existing.groupIds || []).filter((id) => !updates.groupIds.includes(id))
     : [];
   const newlyBanned = updates.bannedFromGroupIds
-    ? updates.bannedFromGroupIds.filter(id => !(existing.bannedFromGroupIds || []).includes(id))
+    ? updates.bannedFromGroupIds.filter((id) => !(existing.bannedFromGroupIds || []).includes(id))
     : [];
-  const affectedGroupIds = [...new Set([...leaving, ...newlyBanned])].filter(id => ObjectId.isValid(id));
+  const affectedGroupIds = [...new Set([...leaving, ...newlyBanned])].filter((id) =>
+    ObjectId.isValid(id),
+  );
   if (affectedGroupIds.length > 0) {
-    const administered = await getDb().collection('groups').findOne({
-      _id: { $in: affectedGroupIds.map(id => new ObjectId(id)) },
-      adminIds: existing._id.toString()
-    });
+    const administered = await getDb()
+      .collection('groups')
+      .findOne({
+        _id: { $in: affectedGroupIds.map((id) => new ObjectId(id)) },
+        adminIds: existing._id.toString(),
+      });
     if (administered) {
       return res.status(403).json({
-        message: `${existing.displayName || existing.username} is an admin of "${administered.title}". A Group Admin can only be removed or banned through a request from another admin, reviewed by the Super Admin.`
+        message: `${existing.displayName || existing.username} is an admin of "${administered.title}". A Group Admin can only be removed or banned through a request from another admin, reviewed by the Super Admin.`,
       });
     }
   }
@@ -777,29 +865,47 @@ app.put('/api/users/:id', async (req, res) => {
 
   // A replaced profile picture would never be shown again, so its
   // file is deleted once the new one is saved.
-  if (updates.profilePicUrl && existing.profilePicUrl && existing.profilePicUrl !== updates.profilePicUrl) {
+  if (
+    updates.profilePicUrl &&
+    existing.profilePicUrl &&
+    existing.profilePicUrl !== updates.profilePicUrl
+  ) {
     deleteUploadedImage(existing.profilePicUrl);
   }
 
   // A change to membership or a ban takes effect in the user's
   // open tabs straight away.
-  if (updates.groupIds !== undefined || updates.bannedFromGroupIds !== undefined ||
-      updates.isSystemBanned !== undefined || updates.role !== undefined) {
+  if (
+    updates.groupIds !== undefined ||
+    updates.bannedFromGroupIds !== undefined ||
+    updates.isSystemBanned !== undefined ||
+    updates.role !== undefined
+  ) {
     await enforceAccess(existing._id.toString());
   }
 
   // Bans and role changes are admin actions; a user editing their
   // own profile is not, so only these are written to the audit log.
   const who = existing.displayName || existing.username;
-  if (updates.isSystemBanned !== undefined && updates.isSystemBanned !== Boolean(existing.isSystemBanned)) {
-    await logAdminAction(req, updates.isSystemBanned ? 'system_ban' : 'system_unban',
-      `${updates.isSystemBanned ? 'Banned' : 'Unbanned'} ${who} ${updates.isSystemBanned ? 'from' : 'on'} the whole system`);
+  if (
+    updates.isSystemBanned !== undefined &&
+    updates.isSystemBanned !== Boolean(existing.isSystemBanned)
+  ) {
+    await logAdminAction(
+      req,
+      updates.isSystemBanned ? 'system_ban' : 'system_unban',
+      `${updates.isSystemBanned ? 'Banned' : 'Unbanned'} ${who} ${updates.isSystemBanned ? 'from' : 'on'} the whole system`,
+    );
   }
   for (const groupId of newlyBanned) {
     await logAdminAction(req, 'member_banned', `Banned ${who} from ${await titleOfGroup(groupId)}`);
   }
   if (updates.role !== undefined && updates.role !== existing.role) {
-    await logAdminAction(req, 'role_changed', `Changed the role of ${who} from ${existing.role} to ${updates.role}`);
+    await logAdminAction(
+      req,
+      'role_changed',
+      `Changed the role of ${who} from ${existing.role} to ${updates.role}`,
+    );
   }
   res.status(204).send();
 });
@@ -810,7 +916,9 @@ app.put('/api/users/:id', async (req, res) => {
 // nobody has it.
 async function findUser(userId) {
   return typeof userId === 'string' && ObjectId.isValid(userId)
-    ? getDb().collection('users').findOne({ _id: new ObjectId(userId) })
+    ? getDb()
+        .collection('users')
+        .findOne({ _id: new ObjectId(userId) })
     : null;
 }
 
@@ -827,10 +935,9 @@ app.post('/api/users/:id/blocks', async (req, res) => {
   if (blocker._id.equals(blocked._id)) {
     return res.status(400).json({ message: 'You cannot block yourself.' });
   }
-  await getDb().collection('users').updateOne(
-    { _id: blocker._id },
-    { $addToSet: { blockedUserIds: blocked._id.toString() } }
-  );
+  await getDb()
+    .collection('users')
+    .updateOne({ _id: blocker._id }, { $addToSet: { blockedUserIds: blocked._id.toString() } });
   res.status(204).send();
 });
 
@@ -840,10 +947,9 @@ app.delete('/api/users/:id/blocks/:blockedUserId', async (req, res) => {
   if (!blocker) {
     return res.status(404).json({ message: 'User not found.' });
   }
-  await getDb().collection('users').updateOne(
-    { _id: blocker._id },
-    { $pull: { blockedUserIds: req.params.blockedUserId } }
-  );
+  await getDb()
+    .collection('users')
+    .updateOne({ _id: blocker._id }, { $pull: { blockedUserIds: req.params.blockedUserId } });
   res.status(204).send();
 });
 
@@ -878,16 +984,23 @@ app.post('/api/reports', async (req, res) => {
   }
   const reason = body.reason.trim();
   if (reason.length > MAX_REPORT_REASON_LENGTH) {
-    return res.status(400).json({ message: `The reason must be ${MAX_REPORT_REASON_LENGTH} characters or fewer.` });
+    return res
+      .status(400)
+      .json({ message: `The reason must be ${MAX_REPORT_REASON_LENGTH} characters or fewer.` });
   }
-  const group = typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
-    ? await getDb().collection('groups').findOne({ _id: new ObjectId(body.groupId) })
-    : null;
+  const group =
+    typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
+      ? await getDb()
+          .collection('groups')
+          .findOne({ _id: new ObjectId(body.groupId) })
+      : null;
   if (!group) {
     return res.status(404).json({ message: 'Group not found.' });
   }
   if (!(reporter.groupIds || []).includes(body.groupId)) {
-    return res.status(403).json({ message: 'You can only report someone in a group you belong to.' });
+    return res
+      .status(403)
+      .json({ message: 'You can only report someone in a group you belong to.' });
   }
 
   const newReport = {
@@ -897,7 +1010,7 @@ app.post('/api/reports', async (req, res) => {
     reason,
     messageText: typeof body.messageText === 'string' ? body.messageText.slice(0, 1000) : '',
     status: 'open',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
   const result = await getDb().collection('reports').insertOne(newReport);
   res.status(201).json(toClientShape({ ...newReport, _id: result.insertedId }));
@@ -921,15 +1034,24 @@ app.put('/api/reports/:id', async (req, res) => {
   if (report.status !== 'open') {
     return res.status(409).json({ message: 'This report has already been decided.' });
   }
-  await reports.updateOne({ _id: report._id }, {
-    $set: {
-      status,
-      decisionNote: typeof decisionNote === 'string' ? decisionNote.trim().slice(0, MAX_REPORT_REASON_LENGTH) : '',
-      decidedAt: new Date().toISOString()
-    }
-  });
-  await logAdminAction(req, status === 'resolved' ? 'report_resolved' : 'report_dismissed',
-    `${status === 'resolved' ? 'Resolved' : 'Dismissed'} the report about ${await nameOfUser(report.reportedUserId)} made by ${await nameOfUser(report.reporterId)}`);
+  await reports.updateOne(
+    { _id: report._id },
+    {
+      $set: {
+        status,
+        decisionNote:
+          typeof decisionNote === 'string'
+            ? decisionNote.trim().slice(0, MAX_REPORT_REASON_LENGTH)
+            : '',
+        decidedAt: new Date().toISOString(),
+      },
+    },
+  );
+  await logAdminAction(
+    req,
+    status === 'resolved' ? 'report_resolved' : 'report_dismissed',
+    `${status === 'resolved' ? 'Resolved' : 'Dismissed'} the report about ${await nameOfUser(report.reportedUserId)} made by ${await nameOfUser(report.reporterId)}`,
+  );
   res.status(204).send();
 });
 
@@ -940,6 +1062,7 @@ app.get('/api/groups', async (req, res) => {
   res.json(groups.map(toClientShape));
 });
 
+// Creates a group, with its first channel.
 app.post('/api/groups', async (req, res) => {
   // Only the whitelisted fields are kept, with defaults for any
   // that were left out, and all of them are checked before saving.
@@ -948,7 +1071,7 @@ app.post('/api/groups', async (req, res) => {
     ageLimit: 0,
     adminIds: [],
     channelIds: [],
-    ...pickFields(req.body || {}, GROUP_FIELDS)
+    ...pickFields(req.body || {}, GROUP_FIELDS),
   };
   const problem = checkGroupFields(fields, true);
   if (problem) {
@@ -964,7 +1087,9 @@ app.post('/api/groups', async (req, res) => {
   const users = getDb().collection('users');
   const admins = [];
   for (const adminId of fields.adminIds) {
-    const admin = ObjectId.isValid(adminId) ? await users.findOne({ _id: new ObjectId(adminId) }) : null;
+    const admin = ObjectId.isValid(adminId)
+      ? await users.findOne({ _id: new ObjectId(adminId) })
+      : null;
     if (!admin) {
       return res.status(400).json({ message: 'Every group admin must be an existing user.' });
     }
@@ -985,27 +1110,33 @@ app.post('/api/groups', async (req, res) => {
     await users.updateOne({ _id: admin._id }, changes);
     await enforceAccess(admin._id.toString());
   }
-  await logAdminAction(req, 'group_created',
-    `Created the group "${newGroup.title}" with ${admins.map(a => a.displayName || a.username).join(', ')} as admin`);
+  await logAdminAction(
+    req,
+    'group_created',
+    `Created the group "${newGroup.title}" with ${admins.map((a) => a.displayName || a.username).join(', ')} as admin`,
+  );
 
   // Every group needs somewhere to chat from the moment it exists,
   // rather than requiring a separate manual step to add the first
   // channel.
   await getDb().collection('channels').insertOne({
     name: 'general',
-    groupId: newGroup.id
+    groupId: newGroup.id,
   });
 
   res.status(201).json(newGroup);
 });
 
+// Changes a group's settings or its admin list.
 app.put('/api/groups/:id', async (req, res) => {
   const updates = pickFields(req.body || {}, GROUP_FIELDS);
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ message: 'No valid fields to update.' });
   }
   const group = ObjectId.isValid(req.params.id)
-    ? await getDb().collection('groups').findOne({ _id: new ObjectId(req.params.id) })
+    ? await getDb()
+        .collection('groups')
+        .findOne({ _id: new ObjectId(req.params.id) })
     : null;
   if (!group) {
     return res.status(404).json({ message: 'Group not found.' });
@@ -1024,16 +1155,30 @@ app.put('/api/groups/:id', async (req, res) => {
   // other change is an edit of the group's settings.
   if (updates.adminIds !== undefined) {
     const before = group.adminIds || [];
-    for (const adminId of updates.adminIds.filter(id => !before.includes(id))) {
-      await logAdminAction(req, 'admin_promoted', `Promoted ${await nameOfUser(adminId)} to admin of "${group.title}"`);
+    for (const adminId of updates.adminIds.filter((id) => !before.includes(id))) {
+      await logAdminAction(
+        req,
+        'admin_promoted',
+        `Promoted ${await nameOfUser(adminId)} to admin of "${group.title}"`,
+      );
     }
-    for (const adminId of before.filter(id => !updates.adminIds.includes(id))) {
-      await logAdminAction(req, 'admin_demoted', `Removed ${await nameOfUser(adminId)} as admin of "${group.title}"`);
+    for (const adminId of before.filter((id) => !updates.adminIds.includes(id))) {
+      await logAdminAction(
+        req,
+        'admin_demoted',
+        `Removed ${await nameOfUser(adminId)} as admin of "${group.title}"`,
+      );
     }
   }
-  const settingsChanged = Object.keys(updates).filter(name => name !== 'adminIds' && name !== 'channelIds');
+  const settingsChanged = Object.keys(updates).filter(
+    (name) => name !== 'adminIds' && name !== 'channelIds',
+  );
   if (settingsChanged.length > 0) {
-    await logAdminAction(req, 'group_updated', `Changed ${settingsChanged.join(', ')} of "${updates.title || group.title}"`);
+    await logAdminAction(
+      req,
+      'group_updated',
+      `Changed ${settingsChanged.join(', ')} of "${updates.title || group.title}"`,
+    );
   }
   res.status(204).send();
 });
@@ -1045,6 +1190,8 @@ app.get('/api/join-requests', async (req, res) => {
   res.json(requests.map(toClientShape));
 });
 
+// A user asks to join a group. Every rule in checkJoinAllowed must
+// pass.
 app.post('/api/join-requests', async (req, res) => {
   const { userId, groupId } = req.body || {};
   const { user, group } = await findUserAndGroup(userId, groupId);
@@ -1059,7 +1206,9 @@ app.post('/api/join-requests', async (req, res) => {
 
   // One pending request per user per group. A request that was
   // rejected earlier doesn't block a new one.
-  const pending = await getDb().collection('joinRequests').findOne({ userId, groupId, status: 'pending' });
+  const pending = await getDb()
+    .collection('joinRequests')
+    .findOne({ userId, groupId, status: 'pending' });
   if (pending) {
     return res.status(409).json({ message: 'There is already a pending request for this group.' });
   }
@@ -1069,6 +1218,7 @@ app.post('/api/join-requests', async (req, res) => {
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
 });
 
+// A Group Admin approves or rejects a join request.
 app.put('/api/join-requests/:id', async (req, res) => {
   const { status, rejectionReason } = req.body || {};
   if (!ObjectId.isValid(req.params.id)) {
@@ -1088,39 +1238,45 @@ app.put('/api/join-requests/:id', async (req, res) => {
     // waiting. A request that no longer passes is rejected with the
     // reason, and the admin is told, rather than failing quietly.
     const { user, group } = await findUserAndGroup(request.userId, request.groupId);
-    const refusal = (!user || !group)
-      ? { message: 'The user or group no longer exists.' }
-      : checkJoinAllowed(user, group);
+    const refusal =
+      !user || !group
+        ? { message: 'The user or group no longer exists.' }
+        : checkJoinAllowed(user, group);
     if (refusal) {
       await joinRequests.updateOne(
         { _id: requestId },
-        { $set: { status: 'rejected', rejectionReason: refusal.message } }
+        { $set: { status: 'rejected', rejectionReason: refusal.message } },
       );
-      await logAdminAction(req, 'join_request_rejected',
-        `Join request by ${await nameOfUser(request.userId)} for ${await titleOfGroup(request.groupId)} could not be approved: ${refusal.message}`);
+      await logAdminAction(
+        req,
+        'join_request_rejected',
+        `Join request by ${await nameOfUser(request.userId)} for ${await titleOfGroup(request.groupId)} could not be approved: ${refusal.message}`,
+      );
       return res.status(409).json({ message: refusal.message });
     }
 
     await joinRequests.updateOne({ _id: requestId }, { $set: { status: 'approved' } });
-    await getDb().collection('users').updateOne(
-      { _id: user._id },
-      { $addToSet: { groupIds: request.groupId } }
-    );
+    await getDb()
+      .collection('users')
+      .updateOne({ _id: user._id }, { $addToSet: { groupIds: request.groupId } });
     // The new group appears in the user's open tabs without a reload.
     await enforceAccess(user._id.toString());
-    await logAdminAction(req, 'join_request_approved',
-      `Approved ${user.displayName || user.username} joining "${group.title}"`);
+    await logAdminAction(
+      req,
+      'join_request_approved',
+      `Approved ${user.displayName || user.username} joining "${group.title}"`,
+    );
     return res.status(204).send();
   }
 
   const rejected = await joinRequests.findOne({ _id: requestId });
-  await joinRequests.updateOne(
-    { _id: requestId },
-    { $set: { status, rejectionReason } }
-  );
+  await joinRequests.updateOne({ _id: requestId }, { $set: { status, rejectionReason } });
   if (rejected && status === 'rejected') {
-    await logAdminAction(req, 'join_request_rejected',
-      `Rejected ${await nameOfUser(rejected.userId)} joining ${await titleOfGroup(rejected.groupId)}${rejectionReason ? ': ' + rejectionReason : ''}`);
+    await logAdminAction(
+      req,
+      'join_request_rejected',
+      `Rejected ${await nameOfUser(rejected.userId)} joining ${await titleOfGroup(rejected.groupId)}${rejectionReason ? ': ' + rejectionReason : ''}`,
+    );
   }
   res.status(204).send();
 });
@@ -1132,6 +1288,7 @@ app.get('/api/group-requests', async (req, res) => {
   res.json(requests.map(toClientShape));
 });
 
+// A user asks the Super Admin for a new group.
 app.post('/api/group-requests', async (req, res) => {
   const body = req.body || {};
   // A proposed group follows the same title and description rules
@@ -1141,7 +1298,7 @@ app.post('/api/group-requests', async (req, res) => {
   const proposed = {
     title: body.proposedTitle,
     description: body.proposedDescription,
-    ageLimit: body.proposedAgeLimit === undefined ? 0 : body.proposedAgeLimit
+    ageLimit: body.proposedAgeLimit === undefined ? 0 : body.proposedAgeLimit,
   };
   const problem = checkGroupFields(proposed, true);
   if (problem) {
@@ -1150,9 +1307,12 @@ app.post('/api/group-requests', async (req, res) => {
   if (!isFilledText(proposed.description)) {
     return res.status(400).json({ message: 'A group description is required.' });
   }
-  const requester = typeof body.requestedBy === 'string' && ObjectId.isValid(body.requestedBy)
-    ? await getDb().collection('users').findOne({ _id: new ObjectId(body.requestedBy) })
-    : null;
+  const requester =
+    typeof body.requestedBy === 'string' && ObjectId.isValid(body.requestedBy)
+      ? await getDb()
+          .collection('users')
+          .findOne({ _id: new ObjectId(body.requestedBy) })
+      : null;
   if (!requester) {
     return res.status(404).json({ message: 'User not found.' });
   }
@@ -1162,12 +1322,14 @@ app.post('/api/group-requests', async (req, res) => {
     proposedTitle: proposed.title,
     proposedDescription: proposed.description,
     proposedAgeLimit: proposed.ageLimit,
-    status: 'pending'
+    status: 'pending',
   };
   const result = await getDb().collection('groupRequests').insertOne(newRequest);
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
 });
 
+// The Super Admin approves or rejects a request for a new group.
+// Creating the group itself is a separate call to POST /api/groups.
 app.put('/api/group-requests/:id', async (req, res) => {
   const { status, rejectionReason } = req.body || {};
   if (status !== 'approved' && status !== 'rejected') {
@@ -1176,16 +1338,20 @@ app.put('/api/group-requests/:id', async (req, res) => {
   if (!ObjectId.isValid(req.params.id)) {
     return res.status(404).json({ message: 'Group request not found.' });
   }
-  const result = await getDb().collection('groupRequests').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { status, rejectionReason } }
-  );
+  const result = await getDb()
+    .collection('groupRequests')
+    .updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status, rejectionReason } });
   if (result.matchedCount === 0) {
     return res.status(404).json({ message: 'Group request not found.' });
   }
-  const decided = await getDb().collection('groupRequests').findOne({ _id: new ObjectId(req.params.id) });
-  await logAdminAction(req, status === 'approved' ? 'group_request_approved' : 'group_request_rejected',
-    `${status === 'approved' ? 'Approved' : 'Rejected'} the request by ${await nameOfUser(decided.requestedBy)} for a group called "${decided.proposedTitle}"${status === 'rejected' && rejectionReason ? ': ' + rejectionReason : ''}`);
+  const decided = await getDb()
+    .collection('groupRequests')
+    .findOne({ _id: new ObjectId(req.params.id) });
+  await logAdminAction(
+    req,
+    status === 'approved' ? 'group_request_approved' : 'group_request_rejected',
+    `${status === 'approved' ? 'Approved' : 'Rejected'} the request by ${await nameOfUser(decided.requestedBy)} for a group called "${decided.proposedTitle}"${status === 'rejected' && rejectionReason ? ': ' + rejectionReason : ''}`,
+  );
   res.status(204).send();
 });
 // --- Room Requests ---
@@ -1195,25 +1361,30 @@ app.get('/api/room-requests', async (req, res) => {
   res.json(requests.map(toClientShape));
 });
 
+// Asks for a new channel. Kept from an earlier design: no page
+// submits these now, since admins create channels directly.
 app.post('/api/room-requests', async (req, res) => {
   const newRequest = { ...req.body, status: 'pending' };
   const result = await getDb().collection('roomRequests').insertOne(newRequest);
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
 });
 
+// Decides a channel request; approving creates the channel. Kept
+// from an earlier design.
 app.put('/api/room-requests/:id', async (req, res) => {
   const { status, rejectionReason } = req.body;
-  await getDb().collection('roomRequests').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { status, rejectionReason } }
-  );
+  await getDb()
+    .collection('roomRequests')
+    .updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status, rejectionReason } });
 
   if (status === 'approved') {
     // Approving a room request actually creates the real channel.
-    const request = await getDb().collection('roomRequests').findOne({ _id: new ObjectId(req.params.id) });
+    const request = await getDb()
+      .collection('roomRequests')
+      .findOne({ _id: new ObjectId(req.params.id) });
     await getDb().collection('channels').insertOne({
       name: request.roomName,
-      groupId: request.groupId
+      groupId: request.groupId,
     });
   }
 
@@ -1241,9 +1412,12 @@ app.post('/api/ban-requests', async (req, res) => {
   if (!requester || !target) {
     return res.status(404).json({ message: 'User not found.' });
   }
-  const group = typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
-    ? await getDb().collection('groups').findOne({ _id: new ObjectId(body.groupId) })
-    : null;
+  const group =
+    typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
+      ? await getDb()
+          .collection('groups')
+          .findOne({ _id: new ObjectId(body.groupId) })
+      : null;
   if (!group) {
     return res.status(404).json({ message: 'Group not found.' });
   }
@@ -1268,17 +1442,27 @@ app.post('/api/ban-requests', async (req, res) => {
   }
   const reason = body.reason.trim();
   if (reason.length > MAX_REPORT_REASON_LENGTH) {
-    return res.status(400).json({ message: `The reason must be ${MAX_REPORT_REASON_LENGTH} characters or fewer.` });
+    return res
+      .status(400)
+      .json({ message: `The reason must be ${MAX_REPORT_REASON_LENGTH} characters or fewer.` });
   }
 
   const admins = group.adminIds || [];
   const targetIsAdmin = admins.includes(targetId);
   if (targetIsAdmin && !admins.includes(requesterId)) {
-    return res.status(403).json({ message: 'Only another admin of this group can ask for a Group Admin to be removed or banned.' });
+    return res
+      .status(403)
+      .json({
+        message:
+          'Only another admin of this group can ask for a Group Admin to be removed or banned.',
+      });
   }
 
   const pending = await getDb().collection('banRequests').findOne({
-    requestedBy: requesterId, targetUserId: targetId, groupId: body.groupId, status: 'pending'
+    requestedBy: requesterId,
+    targetUserId: targetId,
+    groupId: body.groupId,
+    status: 'pending',
   });
   if (pending) {
     return res.status(409).json({ message: 'You already have a pending request about this user.' });
@@ -1292,7 +1476,7 @@ app.post('/api/ban-requests', async (req, res) => {
     reason,
     reviewer: targetIsAdmin ? 'super_admin' : 'group_admin',
     status: 'pending',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
   const result = await getDb().collection('banRequests').insertOne(newRequest);
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
@@ -1318,8 +1502,11 @@ app.put('/api/ban-requests/:id', async (req, res) => {
   const requestAction = request.action === 'remove' ? 'remove' : 'ban';
   if (status === 'rejected') {
     await banRequests.updateOne({ _id: request._id }, { $set: { status, rejectionReason } });
-    await logAdminAction(req, 'ban_request_rejected',
-      `Rejected the request to ${requestAction} ${await nameOfUser(request.targetUserId)} from ${await titleOfGroup(request.groupId)}${rejectionReason ? ': ' + rejectionReason : ''}`);
+    await logAdminAction(
+      req,
+      'ban_request_rejected',
+      `Rejected the request to ${requestAction} ${await nameOfUser(request.targetUserId)} from ${await titleOfGroup(request.groupId)}${rejectionReason ? ': ' + rejectionReason : ''}`,
+    );
     return res.status(204).send();
   }
 
@@ -1330,7 +1517,10 @@ app.put('/api/ban-requests/:id', async (req, res) => {
     ? await groups.findOne({ _id: new ObjectId(request.groupId) })
     : null;
   if (!target || !group) {
-    await banRequests.updateOne({ _id: request._id }, { $set: { status: 'rejected', rejectionReason: 'The user or group no longer exists.' } });
+    await banRequests.updateOne(
+      { _id: request._id },
+      { $set: { status: 'rejected', rejectionReason: 'The user or group no longer exists.' } },
+    );
     return res.status(409).json({ message: 'The user or group no longer exists.' });
   }
   const targetId = target._id.toString();
@@ -1338,7 +1528,11 @@ app.put('/api/ban-requests/:id', async (req, res) => {
   // A group must always keep an admin, even when one is removed.
   const admins = group.adminIds || [];
   if (admins.includes(targetId) && admins.length <= 1) {
-    return res.status(409).json({ message: `${target.displayName || target.username} is the only admin of "${group.title}". Appoint another admin first.` });
+    return res
+      .status(409)
+      .json({
+        message: `${target.displayName || target.username} is the only admin of "${group.title}". Appoint another admin first.`,
+      });
   }
 
   const changes = { $pull: { groupIds: request.groupId } };
@@ -1363,8 +1557,11 @@ app.put('/api/ban-requests/:id', async (req, res) => {
   await banRequests.updateOne({ _id: request._id }, { $set: { status: 'approved' } });
   // Take them out of the group's channels right away.
   await enforceAccess(targetId);
-  await logAdminAction(req, 'ban_request_approved',
-    `Approved the request to ${requestAction} ${target.displayName || target.username}${admins.includes(targetId) ? ' (a Group Admin)' : ''} from "${group.title}". Reason given: ${request.reason}`);
+  await logAdminAction(
+    req,
+    'ban_request_approved',
+    `Approved the request to ${requestAction} ${target.displayName || target.username}${admins.includes(targetId) ? ' (a Group Admin)' : ''} from "${group.title}". Reason given: ${request.reason}`,
+  );
   res.status(204).send();
 });
 
@@ -1377,6 +1574,7 @@ app.get('/api/channels', async (req, res) => {
   res.json(channels.map(toClientShape));
 });
 
+// Adds a channel to a group.
 app.post('/api/channels', async (req, res) => {
   const body = req.body || {};
   if (!isFilledText(body.name)) {
@@ -1384,12 +1582,17 @@ app.post('/api/channels', async (req, res) => {
   }
   const name = body.name.trim();
   if (name.length > MAX_CHANNEL_NAME_LENGTH) {
-    return res.status(400).json({ message: `Channel name must be ${MAX_CHANNEL_NAME_LENGTH} characters or fewer.` });
+    return res
+      .status(400)
+      .json({ message: `Channel name must be ${MAX_CHANNEL_NAME_LENGTH} characters or fewer.` });
   }
   // A channel has to belong to a group that exists.
-  const group = typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
-    ? await getDb().collection('groups').findOne({ _id: new ObjectId(body.groupId) })
-    : null;
+  const group =
+    typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
+      ? await getDb()
+          .collection('groups')
+          .findOne({ _id: new ObjectId(body.groupId) })
+      : null;
   if (!group) {
     return res.status(404).json({ message: 'Group not found.' });
   }
@@ -1429,8 +1632,11 @@ app.delete('/api/channels/:id', async (req, res) => {
     openSocket.leave(channelId);
     openSocket.data.channelId = undefined;
   }
-  await logAdminAction(req, 'channel_deleted',
-    `Deleted the channel "${channel.name}" from ${await titleOfGroup(channel.groupId)} (${messages.length} message(s) removed)`);
+  await logAdminAction(
+    req,
+    'channel_deleted',
+    `Deleted the channel "${channel.name}" from ${await titleOfGroup(channel.groupId)} (${messages.length} message(s) removed)`,
+  );
   res.status(204).send();
 });
 // --- Messages ---
@@ -1444,14 +1650,15 @@ app.get('/api/messages', async (req, res) => {
   }
   // Newest 5 first, then reverse so they display oldest-to-newest,
   // the normal reading order for a chat log.
-  const messages = await getDb().collection('messages')
+  const messages = await getDb()
+    .collection('messages')
     .find({ channelId })
     .sort({ _id: -1 })
     .limit(5)
     .toArray();
-  res.json(messages.reverse().map(doc =>
-    toClientShape({ ...doc, timestamp: resolveTimestamp(doc) })
-  ));
+  res.json(
+    messages.reverse().map((doc) => toClientShape({ ...doc, timestamp: resolveTimestamp(doc) })),
+  );
 });
 
 // --- Audit log ---
@@ -1464,14 +1671,16 @@ app.get('/api/messages', async (req, res) => {
 async function logAdminAction(req, type, summary) {
   try {
     const actor = await findUser(req.get('x-user-id'));
-    await getDb().collection('auditLog').insertOne({
-      type,
-      summary,
-      actorId: actor ? actor._id.toString() : null,
-      actorName: actor ? (actor.displayName || actor.username) : 'unknown',
-      actorRole: actor ? actor.role : null,
-      createdAt: new Date().toISOString()
-    });
+    await getDb()
+      .collection('auditLog')
+      .insertOne({
+        type,
+        summary,
+        actorId: actor ? actor._id.toString() : null,
+        actorName: actor ? actor.displayName || actor.username : 'unknown',
+        actorRole: actor ? actor.role : null,
+        createdAt: new Date().toISOString(),
+      });
   } catch (err) {
     console.error('Could not write to the audit log:', err.message);
   }
@@ -1480,14 +1689,17 @@ async function logAdminAction(req, type, summary) {
 // A display name for a user id, for audit summaries.
 async function nameOfUser(userId) {
   const user = await findUser(userId);
-  return user ? (user.displayName || user.username) : 'a deleted user';
+  return user ? user.displayName || user.username : 'a deleted user';
 }
 
 // A group's title for a group id, for audit summaries.
 async function titleOfGroup(groupId) {
-  const group = typeof groupId === 'string' && ObjectId.isValid(groupId)
-    ? await getDb().collection('groups').findOne({ _id: new ObjectId(groupId) })
-    : null;
+  const group =
+    typeof groupId === 'string' && ObjectId.isValid(groupId)
+      ? await getDb()
+          .collection('groups')
+          .findOne({ _id: new ObjectId(groupId) })
+      : null;
   return group ? `"${group.title}"` : 'a deleted group';
 }
 
@@ -1500,7 +1712,7 @@ app.get('/api/audit-log', async (req, res) => {
   if (typeof req.query.type === 'string' && req.query.type !== '') {
     filter.type = req.query.type;
   }
-  const isDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const isDay = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
   if (isDay(req.query.from) || isDay(req.query.to)) {
     filter.createdAt = {};
     if (isDay(req.query.from)) {
@@ -1510,7 +1722,12 @@ app.get('/api/audit-log', async (req, res) => {
       filter.createdAt.$lte = req.query.to + 'T23:59:59.999Z';
     }
   }
-  const entries = await getDb().collection('auditLog').find(filter).sort({ createdAt: -1, _id: -1 }).limit(1000).toArray();
+  const entries = await getDb()
+    .collection('auditLog')
+    .find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(1000)
+    .toArray();
   res.json(entries.map(toClientShape));
 });
 
@@ -1522,10 +1739,15 @@ const MAX_NOTIFICATION_LENGTH = 500;
 // sent just to them, newest first. With no ?userId= it returns
 // every notification (the Super Admin's list of what was sent).
 app.get('/api/notifications', async (req, res) => {
-  const filter = typeof req.query.userId === 'string'
-    ? { $or: [{ recipientId: null }, { recipientId: req.query.userId }] }
-    : {};
-  const notifications = await getDb().collection('notifications').find(filter).sort({ _id: -1 }).toArray();
+  const filter =
+    typeof req.query.userId === 'string'
+      ? { $or: [{ recipientId: null }, { recipientId: req.query.userId }] }
+      : {};
+  const notifications = await getDb()
+    .collection('notifications')
+    .find(filter)
+    .sort({ _id: -1 })
+    .toArray();
   res.json(notifications.map(toClientShape));
 });
 
@@ -1543,7 +1765,9 @@ app.post('/api/notifications', async (req, res) => {
   }
   const message = body.message.trim();
   if (message.length > MAX_NOTIFICATION_LENGTH) {
-    return res.status(400).json({ message: `A notification must be ${MAX_NOTIFICATION_LENGTH} characters or fewer.` });
+    return res
+      .status(400)
+      .json({ message: `A notification must be ${MAX_NOTIFICATION_LENGTH} characters or fewer.` });
   }
   let recipient = null;
   if (body.recipientId) {
@@ -1557,7 +1781,7 @@ app.post('/api/notifications', async (req, res) => {
     message,
     recipientId: recipient ? recipient._id.toString() : null,
     sentBy: sender._id.toString(),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
   const result = await getDb().collection('notifications').insertOne(newNotification);
   const saved = toClientShape({ ...newNotification, _id: result.insertedId });
@@ -1567,8 +1791,11 @@ app.post('/api/notifications', async (req, res) => {
   } else {
     io.emit('notification', saved);
   }
-  await logAdminAction(req, 'notification_sent',
-    `Sent a notification to ${recipient ? (recipient.displayName || recipient.username) : 'everyone'}: "${message.slice(0, 80)}"`);
+  await logAdminAction(
+    req,
+    'notification_sent',
+    `Sent a notification to ${recipient ? recipient.displayName || recipient.username : 'everyone'}: "${message.slice(0, 80)}"`,
+  );
   res.status(201).json(saved);
 });
 
@@ -1579,10 +1806,9 @@ app.post('/api/notifications/read', async (req, res) => {
   if (!user) {
     return res.status(404).json({ message: 'User not found.' });
   }
-  await getDb().collection('users').updateOne(
-    { _id: user._id },
-    { $set: { notificationsReadAt: new Date().toISOString() } }
-  );
+  await getDb()
+    .collection('users')
+    .updateOne({ _id: user._id }, { $set: { notificationsReadAt: new Date().toISOString() } });
   res.status(204).send();
 });
 
@@ -1594,7 +1820,8 @@ app.post('/api/notifications/read', async (req, res) => {
 app.post('/api/upload', (req, res) => {
   imageUpload.single('image')(req, res, async (err) => {
     if (err) {
-      const message = err.code === 'LIMIT_FILE_SIZE' ? IMAGE_SIZE_MESSAGE : 'The image could not be uploaded.';
+      const message =
+        err.code === 'LIMIT_FILE_SIZE' ? IMAGE_SIZE_MESSAGE : 'The image could not be uploaded.';
       return res.status(400).json({ message });
     }
     // No file means none was sent, or the filter turned it away
@@ -1674,10 +1901,11 @@ io.on('connection', (socket) => {
       channelId,
       userId,
       username,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   });
 
+  // The user closed a channel or moved to another one.
   socket.on('leaveChannel', (payload) => {
     const { channelId } = payload || {};
     // Only announce a leave for a socket that really was in the
@@ -1690,7 +1918,7 @@ io.on('connection', (socket) => {
       channelId,
       userId: socket.data.userId,
       username: socket.data.username,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   });
 
@@ -1713,60 +1941,70 @@ io.on('connection', (socket) => {
     await messages.deleteOne({ _id: message._id });
     deleteUploadedImage(message.imageUrl);
     // Everyone with the channel open removes it from their screen.
-    io.to(message.channelId).emit('messageDeleted', { id: messageId, channelId: message.channelId });
+    io.to(message.channelId).emit('messageDeleted', {
+      id: messageId,
+      channelId: message.channelId,
+    });
   });
 
- socket.on('sendMessage', async (payload) => {
-  const message = payload || {};
-  // The sender is the user this socket joined as, not whatever id
-  // the message claims. The socket must be in the channel's room
-  // and the user must still be allowed in it -- a ban can arrive
-  // while the channel is open.
-  const userId = socket.data.userId;
-  const inRoom = socket.rooms.has(message.channelId);
-  if (!inRoom || !(await canUseChannel(userId, message.channelId))) {
-    if (inRoom) {
-      socket.leave(message.channelId);
+  // The user sent a message to the channel they have open.
+  socket.on('sendMessage', async (payload) => {
+    const message = payload || {};
+    // The sender is the user this socket joined as, not whatever id
+    // the message claims. The socket must be in the channel's room
+    // and the user must still be allowed in it -- a ban can arrive
+    // while the channel is open.
+    const userId = socket.data.userId;
+    const inRoom = socket.rooms.has(message.channelId);
+    if (!inRoom || !(await canUseChannel(userId, message.channelId))) {
+      if (inRoom) {
+        socket.leave(message.channelId);
+      }
+      socket.emit('channelDenied', {
+        channelId: message.channelId,
+        message: CHANNEL_DENIED_MESSAGE,
+      });
+      return;
     }
-    socket.emit('channelDenied', { channelId: message.channelId, message: CHANNEL_DENIED_MESSAGE });
-    return;
-  }
 
-  const toSave = { ...message, senderId: userId };
+    const toSave = { ...message, senderId: userId };
 
-  // An image is kept only if it is a path this server handed out.
-  // A message needs some text or an image; an empty one is dropped.
-  if (!isUploadedImageUrl(toSave.imageUrl)) {
-    delete toSave.imageUrl;
-  }
-  const hasText = typeof toSave.text === 'string' && toSave.text.trim() !== '';
-  if (!hasText && !toSave.imageUrl) {
-    return;
-  }
-
-  const result = await getDb().collection('messages').insertOne(toSave);
-  const saved = { ...toSave, id: result.insertedId.toString() };
-  io.to(message.channelId).emit('newMessage', saved);
-
-  // Enforce the "only the last 5 messages are stored" rule: find
-  // every message in this channel, oldest first, and delete any
-  // beyond the 5 most recent.
-  const allForChannel = await getDb().collection('messages')
-    .find({ channelId: message.channelId })
-    .sort({ _id: 1 })
-    .toArray();
-
-  if (allForChannel.length > 5) {
-    const oldMessages = allForChannel.slice(0, allForChannel.length - 5);
-    const idsToDelete = oldMessages.map(m => m._id);
-    await getDb().collection('messages').deleteMany({ _id: { $in: idsToDelete } });
-    // An image whose message is gone would never be shown again,
-    // so remove its file too.
-    for (const oldMessage of oldMessages) {
-      deleteUploadedImage(oldMessage.imageUrl);
+    // An image is kept only if it is a path this server handed out.
+    // A message needs some text or an image; an empty one is dropped.
+    if (!isUploadedImageUrl(toSave.imageUrl)) {
+      delete toSave.imageUrl;
     }
-  }
-});
+    const hasText = typeof toSave.text === 'string' && toSave.text.trim() !== '';
+    if (!hasText && !toSave.imageUrl) {
+      return;
+    }
+
+    const result = await getDb().collection('messages').insertOne(toSave);
+    const saved = { ...toSave, id: result.insertedId.toString() };
+    io.to(message.channelId).emit('newMessage', saved);
+
+    // Enforce the "only the last 5 messages are stored" rule: find
+    // every message in this channel, oldest first, and delete any
+    // beyond the 5 most recent.
+    const allForChannel = await getDb()
+      .collection('messages')
+      .find({ channelId: message.channelId })
+      .sort({ _id: 1 })
+      .toArray();
+
+    if (allForChannel.length > 5) {
+      const oldMessages = allForChannel.slice(0, allForChannel.length - 5);
+      const idsToDelete = oldMessages.map((m) => m._id);
+      await getDb()
+        .collection('messages')
+        .deleteMany({ _id: { $in: idsToDelete } });
+      // An image whose message is gone would never be shown again,
+      // so remove its file too.
+      for (const oldMessage of oldMessages) {
+        deleteUploadedImage(oldMessage.imageUrl);
+      }
+    }
+  });
 
   // 'disconnecting' fires while the socket is still in its rooms.
   // By the time 'disconnect' fires socket.rooms is already empty,
@@ -1777,7 +2015,7 @@ io.on('connection', (socket) => {
         channelId: socket.data.channelId,
         userId: socket.data.userId,
         username: socket.data.username,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
     // A closed tab is one fewer connection for its user.
@@ -1785,17 +2023,21 @@ io.on('connection', (socket) => {
   });
 });
 
-connectToDatabase().then(async () => {
-  // Accounts created before passwords were hashed are converted
-  // here, once. On every later start there is nothing to convert.
-  const conversion = await convertPlainTextPasswords(getDb());
-  if (conversion.converted > 0) {
-    console.log(`Hashed ${conversion.converted} plain-text password(s). Backup saved to ${conversion.backupPath}`);
-  }
+connectToDatabase()
+  .then(async () => {
+    // Accounts created before passwords were hashed are converted
+    // here, once. On every later start there is nothing to convert.
+    const conversion = await convertPlainTextPasswords(getDb());
+    if (conversion.converted > 0) {
+      console.log(
+        `Hashed ${conversion.converted} plain-text password(s). Backup saved to ${conversion.backupPath}`,
+      );
+    }
 
-  httpServer.listen(PORT, () => {
-    console.log(`Fabulari server running on http://localhost:${PORT}`);
+    httpServer.listen(PORT, () => {
+      console.log(`Fabulari server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to connect to MongoDB:', err.message);
   });
-}).catch(err => {
-  console.error('Failed to connect to MongoDB:', err.message);
-});

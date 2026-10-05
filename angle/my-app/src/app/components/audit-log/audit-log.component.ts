@@ -30,7 +30,7 @@ const ACTION_TYPES: { value: string; label: string }[] = [
   { value: 'channel_deleted', label: 'Channel deleted' },
   { value: 'report_resolved', label: 'Report resolved' },
   { value: 'report_dismissed', label: 'Report dismissed' },
-  { value: 'notification_sent', label: 'Notification sent' }
+  { value: 'notification_sent', label: 'Notification sent' },
 ];
 
 // The Super Admin's view of every admin action, filterable by the
@@ -40,16 +40,18 @@ const ACTION_TYPES: { value: string; label: string }[] = [
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './audit-log.component.html',
-  styleUrl: './audit-log.component.css'
+  styleUrl: './audit-log.component.css',
 })
 export class AuditLogComponent implements OnInit {
   // The entries the server returned for the current filters. This
   // list can be searched by text and is shown a page at a time;
   // see PagedList for how the signals inside it work.
   entryList = new PagedList<AuditEntry>(
-    (entry, term) => entry.summary.toLowerCase().includes(term) ||
-      entry.actorName.toLowerCase().includes(term) || this.typeLabel(entry.type).toLowerCase().includes(term),
-    20
+    (entry, term) =>
+      entry.summary.toLowerCase().includes(term) ||
+      entry.actorName.toLowerCase().includes(term) ||
+      this.typeLabel(entry.type).toLowerCase().includes(term),
+    20,
   );
   actionTypes = ACTION_TYPES;
   // A signal, so the "nothing matches" message appears as soon as
@@ -65,9 +67,11 @@ export class AuditLogComponent implements OnInit {
     private router: Router,
     private authService: AuthService,
     private notificationService: NotificationService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
+  // Only the Super Admin may open this page; anyone else is sent away.
+  // Then loads the log.
   ngOnInit(): void {
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser) {
@@ -84,11 +88,13 @@ export class AuditLogComponent implements OnInit {
   // Asks the server for the entries matching the current filters.
   // The filtering is done by the server's database query.
   loadEntries(): void {
-    this.notificationService.getAuditLog(this.filterType, this.filterFrom, this.filterTo).subscribe(entries => {
-      this.entryList.setItems(entries);
-      this.entryList.page.set(1);
-      this.loaded.set(true);
-    });
+    this.notificationService
+      .getAuditLog(this.filterType, this.filterFrom, this.filterTo)
+      .subscribe((entries) => {
+        this.entryList.setItems(entries);
+        this.entryList.page.set(1);
+        this.loaded.set(true);
+      });
   }
 
   // Empties all three filters and reloads.
@@ -102,12 +108,14 @@ export class AuditLogComponent implements OnInit {
 
   // The readable name of an action type.
   typeLabel(type: string): string {
-    return ACTION_TYPES.find(t => t.value === type)?.label || type;
+    return ACTION_TYPES.find((t) => t.value === type)?.label || type;
   }
 
   // Shows an ISO date as a short local date and time.
   formatDate(isoDate: string): string {
     const date = new Date(isoDate);
-    return isNaN(date.getTime()) ? isoDate : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    return isNaN(date.getTime())
+      ? isoDate
+      : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
   }
 }

@@ -1,7 +1,7 @@
 <div class="profile-page">
 
   <div class="top-bar">
-    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <img src="fabulari-logo-small.png" alt="Fabulari" class="brand-logo-img" />
     <span class="profile-title">My Profile</span>
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
@@ -43,7 +43,7 @@
         <span class="hint-inline" *ngIf="!dateOfBirthLocked">Can only be set once, so check it before saving.</span>
 
         <label for="profile-bio">About Me</label>
-        <textarea id="profile-bio" [(ngModel)]="bio" rows="3" placeholder="Say a little about yourself..."></textarea>
+        <textarea id="profile-bio" [(ngModel)]="bio" rows="3" maxlength="500" placeholder="Say a little about yourself..."></textarea>
 
         <div *ngIf="profileError" class="password-msg" role="alert">{{ profileError }}</div>
         <div *ngIf="saved" class="success-text" role="status">Profile saved.</div>
@@ -105,7 +105,7 @@
 
         <div *ngIf="appearanceMsg" class="success-text" role="status">{{ appearanceMsg }}</div>
 
-        <div>
+        <div class="button-row">
           <button type="button" class="btn btn-primary" (click)="saveAppearance()">Save Appearance</button>
           <button type="button" class="btn" (click)="resetAppearance()">Reset to Default</button>
         </div>
@@ -131,7 +131,7 @@
           group, another admin has to be appointed for it first.
         </p>
         <div *ngIf="deleteError" class="password-msg" role="alert">{{ deleteError }}</div>
-        <button type="button" class="btn" (click)="deleteMyAccount()">Delete My Account</button>
+        <div class="button-row"><button type="button" class="btn" (click)="deleteMyAccount()">Delete My Account</button></div>
       </div>
     </div>
 

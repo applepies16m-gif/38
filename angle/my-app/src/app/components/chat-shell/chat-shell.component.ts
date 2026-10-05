@@ -20,7 +20,7 @@ import { NotificationService } from '../../services/notification.service';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './chat-shell.component.html',
-  styleUrl: './chat-shell.component.css'
+  styleUrl: './chat-shell.component.css',
 })
 export class ChatShellComponent implements OnInit, OnDestroy {
   currentUsername = '';
@@ -69,9 +69,12 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     private uploadService: UploadService,
     private reportService: ReportService,
     private notificationService: NotificationService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
+  // Checks who is logged in, loads their groups, channels and the user
+  // list, and starts listening for every socket event the page reacts
+  // to.
   ngOnInit(): void {
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser) {
@@ -91,12 +94,12 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     this.myGroupIds = currentUser.groupIds;
     this.applyMembership();
 
-    this.groupService.getGroups().subscribe(groups => {
+    this.groupService.getGroups().subscribe((groups) => {
       this.everyGroup = groups;
       this.applyMembership();
     });
 
-    this.channelService.getChannels().subscribe(channels => {
+    this.channelService.getChannels().subscribe((channels) => {
       this.allChannels = channels;
       this.cdr.markForCheck();
     });
@@ -114,20 +117,22 @@ export class ChatShellComponent implements OnInit, OnDestroy {
         this.socketService.getSocket().emit('joinChannel', {
           channelId: this.activeChannelId,
           userId: this.currentUserId,
-          username: this.currentUsername
+          username: this.currentUsername,
         });
       }
     });
 
     // Someone came online or went offline.
-    this.socketService.getSocket().on('presenceChanged', (data: { userId: string; online: boolean }) => {
-      if (data.online) {
-        this.onlineUserIds.add(data.userId);
-      } else {
-        this.onlineUserIds.delete(data.userId);
-      }
-      this.cdr.markForCheck();
-    });
+    this.socketService
+      .getSocket()
+      .on('presenceChanged', (data: { userId: string; online: boolean }) => {
+        if (data.online) {
+          this.onlineUserIds.add(data.userId);
+        } else {
+          this.onlineUserIds.delete(data.userId);
+        }
+        this.cdr.markForCheck();
+      });
 
     // The Super Admin sent a notification that this user can read.
     this.socketService.getSocket().on('notification', () => {
@@ -138,7 +143,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     // A Group Admin deleted a channel: drop it from the list, and
     // if it was the one open here, close it and say why.
     this.socketService.getSocket().on('channelDeleted', (data: { id: string; name: string }) => {
-      this.allChannels = this.allChannels.filter(c => c.id !== data.id);
+      this.allChannels = this.allChannels.filter((c) => c.id !== data.id);
       if (this.activeChannelId === data.id) {
         this.activeChannelId = '';
         this.messages = [];
@@ -161,49 +166,63 @@ export class ChatShellComponent implements OnInit, OnDestroy {
 
     // Someone deleted one of their messages: take it off this
     // screen too. Nothing replaces it.
-    this.socketService.getSocket().on('messageDeleted', (data: { id: string; channelId: string }) => {
-      this.messages = this.messages.filter(m => m.id !== data.id);
-      this.cdr.markForCheck();
-    });
+    this.socketService
+      .getSocket()
+      .on('messageDeleted', (data: { id: string; channelId: string }) => {
+        this.messages = this.messages.filter((m) => m.id !== data.id);
+        this.cdr.markForCheck();
+      });
 
     // The server refused a join or a message, because this user is
     // not a member of the channel's group or has been banned from
     // it. Close the channel, say why, and re-read the user from the
     // server so the group disappears from the list.
-    this.socketService.getSocket().on('channelDenied', (data: { channelId: string; message: string }) => {
-      if (data.channelId === this.activeChannelId) {
-        this.activeChannelId = '';
-        this.messages = [];
-        this.systemMessages = [];
-      }
-      this.channelNotice = data.message;
-      this.refreshCurrentUser();
-      this.cdr.markForCheck();
-    });
-
-    this.socketService.getSocket().on('userJoined', (data: { channelId: string; userId?: string; username: string; timestamp: string }) => {
-      this.systemMessages.push({
-        id: 's' + Date.now(),
-        channelId: data.channelId,
-        type: 'join',
-        userId: data.userId,
-        username: data.username,
-        timestamp: data.timestamp
+    this.socketService
+      .getSocket()
+      .on('channelDenied', (data: { channelId: string; message: string }) => {
+        if (data.channelId === this.activeChannelId) {
+          this.activeChannelId = '';
+          this.messages = [];
+          this.systemMessages = [];
+        }
+        this.channelNotice = data.message;
+        this.refreshCurrentUser();
+        this.cdr.markForCheck();
       });
-      this.cdr.markForCheck();
-    });
 
-    this.socketService.getSocket().on('userLeft', (data: { channelId: string; userId?: string; username: string; timestamp: string }) => {
-      this.systemMessages.push({
-        id: 's' + Date.now(),
-        channelId: data.channelId,
-        type: 'leave',
-        userId: data.userId,
-        username: data.username,
-        timestamp: data.timestamp
-      });
-      this.cdr.markForCheck();
-    });
+    this.socketService
+      .getSocket()
+      .on(
+        'userJoined',
+        (data: { channelId: string; userId?: string; username: string; timestamp: string }) => {
+          this.systemMessages.push({
+            id: 's' + Date.now(),
+            channelId: data.channelId,
+            type: 'join',
+            userId: data.userId,
+            username: data.username,
+            timestamp: data.timestamp,
+          });
+          this.cdr.markForCheck();
+        },
+      );
+
+    this.socketService
+      .getSocket()
+      .on(
+        'userLeft',
+        (data: { channelId: string; userId?: string; username: string; timestamp: string }) => {
+          this.systemMessages.push({
+            id: 's' + Date.now(),
+            channelId: data.channelId,
+            type: 'leave',
+            userId: data.userId,
+            username: data.username,
+            timestamp: data.timestamp,
+          });
+          this.cdr.markForCheck();
+        },
+      );
   }
 
   // Tells the server which user this browser tab belongs to.
@@ -214,7 +233,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   // The group whose channel is open, or undefined if none is.
   get currentGroup(): Group | undefined {
     const channel = this.activeChannel;
-    return channel ? this.allGroups.find(g => g.id === channel.groupId) : undefined;
+    return channel ? this.allGroups.find((g) => g.id === channel.groupId) : undefined;
   }
 
   // "Online Now": the members of the group being viewed, each
@@ -225,15 +244,17 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       return [];
     }
     return this.allUsers
-      .filter(u => (u.groupIds || []).includes(group.id))
-      .map(u => ({
+      .filter((u) => (u.groupIds || []).includes(group.id))
+      .map((u) => ({
         id: u.id,
         displayName: u.displayName,
         // This user is online by definition: they are looking at the page.
         online: u.id === this.currentUserId || this.onlineUserIds.has(u.id),
-        isAdmin: (group.adminIds || []).includes(u.id)
+        isAdmin: (group.adminIds || []).includes(u.id),
       }))
-      .sort((a, b) => Number(b.online) - Number(a.online) || a.displayName.localeCompare(b.displayName));
+      .sort(
+        (a, b) => Number(b.online) - Number(a.online) || a.displayName.localeCompare(b.displayName),
+      );
   }
 
   // Asks the group's admins to remove or ban another member, with
@@ -244,7 +265,9 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     if (!group || member.id === this.currentUserId) {
       return;
     }
-    const reason = prompt(`Why should ${member.displayName} be ${action === 'ban' ? 'banned from' : 'removed from'} ${group.title}?`);
+    const reason = prompt(
+      `Why should ${member.displayName} be ${action === 'ban' ? 'banned from' : 'removed from'} ${group.title}?`,
+    );
     if (reason === null) {
       return;
     }
@@ -252,22 +275,24 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       this.channelNotice = 'A request needs a reason.';
       return;
     }
-    this.groupService.submitBanRequest({
-      requestedBy: this.currentUserId,
-      targetUserId: member.id,
-      groupId: group.id,
-      action,
-      reason
-    }).subscribe({
-      next: () => {
-        this.channelNotice = `Your request about ${member.displayName} has been sent to the group's admins.`;
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        this.channelNotice = err.error?.message || 'Your request could not be sent.';
-        this.cdr.markForCheck();
-      }
-    });
+    this.groupService
+      .submitBanRequest({
+        requestedBy: this.currentUserId,
+        targetUserId: member.id,
+        groupId: group.id,
+        action,
+        reason,
+      })
+      .subscribe({
+        next: () => {
+          this.channelNotice = `Your request about ${member.displayName} has been sent to the group's admins.`;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.channelNotice = err.error?.message || 'Your request could not be sent.';
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   // Re-reads the user list from the server. It fills "Online Now"
@@ -275,11 +300,11 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   // which dates from login: bans, approvals and promotions since
   // then only exist on the server.
   private refreshCurrentUser(): void {
-    this.userService.getUsers().subscribe(users => {
+    this.userService.getUsers().subscribe((users) => {
       this.allUsers = users;
-      this.onlineUserIds = new Set(users.filter(u => u.online).map(u => u.id));
+      this.onlineUserIds = new Set(users.filter((u) => u.online).map((u) => u.id));
 
-      const freshUser = users.find(u => u.id === this.currentUserId);
+      const freshUser = users.find((u) => u.id === this.currentUserId);
       if (!freshUser) {
         // The account no longer exists, so end the session.
         this.logout();
@@ -306,8 +331,8 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   // yet: those sent after they last visited the Notifications
   // page. ISO dates compare correctly as plain text.
   private countUnreadNotifications(lastReadAt: string): void {
-    this.notificationService.getNotificationsFor(this.currentUserId).subscribe(notifications => {
-      this.unreadNotifications = notifications.filter(n => n.createdAt > lastReadAt).length;
+    this.notificationService.getNotificationsFor(this.currentUserId).subscribe((notifications) => {
+      this.unreadNotifications = notifications.filter((n) => n.createdAt > lastReadAt).length;
       this.cdr.markForCheck();
     });
   }
@@ -320,7 +345,11 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     if (message.senderId === this.currentUserId) {
       return;
     }
-    if (!confirm(`Block ${message.senderName}? You will no longer see their messages. You can unblock them on your profile.`)) {
+    if (
+      !confirm(
+        `Block ${message.senderName}? You will no longer see their messages. You can unblock them on your profile.`,
+      )
+    ) {
       return;
     }
     this.userService.blockUser(this.currentUserId, message.senderId).subscribe({
@@ -331,7 +360,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.channelNotice = err.error?.message || 'That user could not be blocked.';
         this.cdr.markForCheck();
-      }
+      },
     });
   }
 
@@ -351,29 +380,31 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       this.channelNotice = 'A report needs a reason.';
       return;
     }
-    this.reportService.submitReport({
-      reporterId: this.currentUserId,
-      reportedUserId: message.senderId,
-      groupId: channel.groupId,
-      reason,
-      messageText: message.text || (message.imageUrl ? '(image)' : '')
-    }).subscribe({
-      next: () => {
-        this.channelNotice = `Your report about ${message.senderName} has been sent to the Super Admin.`;
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        this.channelNotice = err.error?.message || 'Your report could not be sent.';
-        this.cdr.markForCheck();
-      }
-    });
+    this.reportService
+      .submitReport({
+        reporterId: this.currentUserId,
+        reportedUserId: message.senderId,
+        groupId: channel.groupId,
+        reason,
+        messageText: message.text || (message.imageUrl ? '(image)' : ''),
+      })
+      .subscribe({
+        next: () => {
+          this.channelNotice = `Your report about ${message.senderName} has been sent to the Super Admin.`;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.channelNotice = err.error?.message || 'Your report could not be sent.';
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   // Works out which groups to show: only the ones this user
   // currently belongs to. Called whenever the group list or the
   // user's membership changes.
   private applyMembership(): void {
-    this.allGroups = this.everyGroup.filter(g => this.myGroupIds.includes(g.id));
+    this.allGroups = this.everyGroup.filter((g) => this.myGroupIds.includes(g.id));
     this.hasGroups = this.myGroupIds.length > 0;
     this.cdr.markForCheck();
   }
@@ -398,17 +429,19 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     if (this.activeChannelId) {
       socket.emit('leaveChannel', {
         channelId: this.activeChannelId,
-        username: this.currentUsername
+        username: this.currentUsername,
       });
     }
   }
 
+  // The channels that belong to one group.
   channelsForGroup(groupId: string): Channel[] {
-    return this.allChannels.filter(c => c.groupId === groupId);
+    return this.allChannels.filter((c) => c.groupId === groupId);
   }
 
+  // The channel that is open, or undefined if none is.
   get activeChannel(): Channel | undefined {
-    return this.allChannels.find(c => c.id === this.activeChannelId);
+    return this.allChannels.find((c) => c.id === this.activeChannelId);
   }
 
   // What the thread shows: this channel's messages and join/leave
@@ -416,22 +449,30 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   // person has blocked. Blocked content is simply not there; no
   // placeholder is shown.
   get threadItems(): (ChatMessage | SystemMessage)[] {
-    const chatItems = this.messages.filter(m =>
-      m.channelId === this.activeChannelId && !this.blockedUserIds.includes(m.senderId));
-    const systemItems = this.systemMessages.filter(s =>
-      s.channelId === this.activeChannelId && !(s.userId && this.blockedUserIds.includes(s.userId)));
+    const chatItems = this.messages.filter(
+      (m) => m.channelId === this.activeChannelId && !this.blockedUserIds.includes(m.senderId),
+    );
+    const systemItems = this.systemMessages.filter(
+      (s) =>
+        s.channelId === this.activeChannelId &&
+        !(s.userId && this.blockedUserIds.includes(s.userId)),
+    );
     return [...chatItems, ...systemItems].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
 
+  // True for a joined/left notice, false for a chat message. The
+  // template uses it to draw each kind differently.
   isSystemMessage(item: ChatMessage | SystemMessage): item is SystemMessage {
     return 'type' in item;
   }
 
+  // Opens a channel: leaves the one that was open, joins the new one
+  // over the socket, and loads its last 5 messages.
   selectChannel(channelId: string): void {
     if (this.activeChannelId) {
       this.socketService.getSocket().emit('leaveChannel', {
         channelId: this.activeChannelId,
-        username: this.currentUsername
+        username: this.currentUsername,
       });
     }
 
@@ -446,17 +487,17 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     this.socketService.getSocket().emit('joinChannel', {
       channelId: this.activeChannelId,
       userId: this.currentUserId,
-      username: this.currentUsername
+      username: this.currentUsername,
     });
 
-    this.messageService.getRecentMessages(channelId, this.currentUserId).subscribe(history => {
+    this.messageService.getRecentMessages(channelId, this.currentUserId).subscribe((history) => {
       // Ignore a late response if the user already switched channels.
       if (this.activeChannelId !== channelId) {
         return;
       }
       // Merge rather than overwrite, so a message that arrived live
       // while the history request was in flight isn't lost or doubled.
-      const liveOnly = this.messages.filter(m => !history.some(h => h.id === m.id));
+      const liveOnly = this.messages.filter((m) => !history.some((h) => h.id === m.id));
       this.messages = [...history, ...liveOnly];
       this.cdr.markForCheck();
     });
@@ -516,7 +557,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
         this.isSending = false;
         this.imageError = err.error?.message || 'The image could not be uploaded.';
         this.cdr.markForCheck();
-      }
+      },
     });
   }
 
@@ -530,7 +571,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       imageUrl,
       // ISO format, the same as the server's join/leave notices, so
       // threadItems can sort both kinds together correctly.
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -563,6 +604,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  // Ends the session and returns to the login page.
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);

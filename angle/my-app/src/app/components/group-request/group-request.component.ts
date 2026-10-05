@@ -11,7 +11,7 @@ import { GroupService } from '../../services/group.service';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './group-request.component.html',
-  styleUrl: './group-request.component.css'
+  styleUrl: './group-request.component.css',
 })
 export class GroupRequestComponent implements OnInit {
   proposedTitle = '';
@@ -28,9 +28,11 @@ export class GroupRequestComponent implements OnInit {
     private router: Router,
     private authService: AuthService,
     private groupService: GroupService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
+  // Sends away anyone not logged in, and the Super Admin. Then loads
+  // this user's earlier requests.
   ngOnInit(): void {
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser) {
@@ -45,16 +47,19 @@ export class GroupRequestComponent implements OnInit {
 
     // Read from the server, so earlier requests and their outcome
     // are still listed after a reload.
-    this.groupService.getGroupRequests().subscribe(requests => {
-      this.myRequests = requests.filter(r => r.requestedBy === currentUser.id).reverse();
+    this.groupService.getGroupRequests().subscribe((requests) => {
+      this.myRequests = requests.filter((r) => r.requestedBy === currentUser.id).reverse();
       this.cdr.markForCheck();
     });
   }
 
+  // How many more characters the title may have (the limit is 30).
   get titleCharsLeft(): number {
     return 30 - this.proposedTitle.length;
   }
 
+  // How many more characters the description may have (the limit is
+  // 250).
   get descriptionCharsLeft(): number {
     return 250 - this.proposedDescription.length;
   }
@@ -78,24 +83,26 @@ export class GroupRequestComponent implements OnInit {
     if (!currentUser) {
       return;
     }
-    this.groupService.submitGroupRequest({
-      requestedBy: currentUser.id,
-      proposedTitle: this.proposedTitle,
-      proposedDescription: this.proposedDescription,
-      proposedAgeLimit: ageLimit
-    }).subscribe({
-      next: (newRequest) => {
-        this.myRequests.unshift(newRequest);
-        this.proposedTitle = '';
-        this.proposedDescription = '';
-        this.proposedAgeLimit = 0;
-        this.submitted = true;
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        this.errorMsg = err.error?.message || 'Your request could not be submitted.';
-        this.cdr.markForCheck();
-      }
-    });
+    this.groupService
+      .submitGroupRequest({
+        requestedBy: currentUser.id,
+        proposedTitle: this.proposedTitle,
+        proposedDescription: this.proposedDescription,
+        proposedAgeLimit: ageLimit,
+      })
+      .subscribe({
+        next: (newRequest) => {
+          this.myRequests.unshift(newRequest);
+          this.proposedTitle = '';
+          this.proposedDescription = '';
+          this.proposedAgeLimit = 0;
+          this.submitted = true;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.errorMsg = err.error?.message || 'Your request could not be submitted.';
+          this.cdr.markForCheck();
+        },
+      });
   }
 }

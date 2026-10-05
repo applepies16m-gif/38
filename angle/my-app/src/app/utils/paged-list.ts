@@ -19,11 +19,13 @@ export class PagedList<T> {
   // The items matching the search (all of them if it is empty).
   readonly filtered = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
-    return term ? this.items().filter(item => this.matches(item, term)) : this.items();
+    return term ? this.items().filter((item) => this.matches(item, term)) : this.items();
   });
 
   // How many pages the matching items fill; never fewer than one.
-  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.filtered().length / this.pageSize)));
+  readonly pageCount = computed(() =>
+    Math.max(1, Math.ceil(this.filtered().length / this.pageSize)),
+  );
 
   // The page being shown. If a search leaves fewer pages than the
   // page number asked for, the last page is shown instead.
@@ -40,7 +42,7 @@ export class PagedList<T> {
   // many rows make a page.
   constructor(
     private matches: (item: T, term: string) => boolean,
-    readonly pageSize = 10
+    readonly pageSize = 10,
   ) {}
 
   // Replaces the whole list, for example when it arrives from the
@@ -56,10 +58,12 @@ export class PagedList<T> {
     this.page.set(1);
   }
 
+  // Moves to the next page, stopping at the last.
   next(): void {
     this.page.set(Math.min(this.currentPage() + 1, this.pageCount()));
   }
 
+  // Moves to the previous page, stopping at the first.
   previous(): void {
     this.page.set(Math.max(this.currentPage() - 1, 1));
   }

@@ -7,7 +7,8 @@
 export const MAX_AGE_YEARS = 120;
 
 // Shown when a date of birth fails calculateAge's rules.
-export const INVALID_DATE_OF_BIRTH_MESSAGE = 'Date of birth must be a real date, not in the future and not more than 120 years ago.';
+export const INVALID_DATE_OF_BIRTH_MESSAGE =
+  'Date of birth must be a real date, not in the future and not more than 120 years ago.';
 
 // Returns the age in whole years today, or null if the date of
 // birth is missing, not a real calendar date written as
@@ -25,14 +26,17 @@ export function calculateAge(dateOfBirth: string | undefined): number | null {
   // becomes 1 March), so if the parts read back differently the
   // date was never real.
   const built = new Date(Date.UTC(year, month - 1, day));
-  if (built.getUTCFullYear() !== year || built.getUTCMonth() !== month - 1 || built.getUTCDate() !== day) {
+  if (
+    built.getUTCFullYear() !== year ||
+    built.getUTCMonth() !== month - 1 ||
+    built.getUTCDate() !== day
+  ) {
     return null;
   }
 
   const today = new Date();
   const thisMonth = today.getMonth() + 1;
-  const birthdayPassed = thisMonth > month ||
-    (thisMonth === month && today.getDate() >= day);
+  const birthdayPassed = thisMonth > month || (thisMonth === month && today.getDate() >= day);
 
   let age = today.getFullYear() - year;
   if (!birthdayPassed) {

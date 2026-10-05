@@ -11,5 +11,5 @@ export const TEST_USERS: Record<string, TestUser> = {
   superadmin: { password: 'Super123', role: 'super_admin', hasGroups: false },
   groupadmin: { password: 'Group123', role: 'group_admin', hasGroups: true },
   newuser: { password: 'NewUser123', role: 'user', hasGroups: false },
-  member: { password: 'Member123', role: 'user', hasGroups: true }
+  member: { password: 'Member123', role: 'user', hasGroups: true },
 };

@@ -5,11 +5,12 @@ import { environment } from '../../environments/environment';
 const SOCKET_URL = environment.serverUrl;
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class SocketService {
   private socket: Socket = io(SOCKET_URL);
 
+  // The one socket connection the whole app shares.
   getSocket(): Socket {
     return this.socket;
   }

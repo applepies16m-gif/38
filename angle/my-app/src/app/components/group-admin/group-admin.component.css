@@ -73,3 +73,11 @@
   align-self: flex-start;
   margin-top: 8px;
 }
+/* The colour picker is a small swatch, not a full-width box like
+   the text fields around it. */
+.form-grid input[type="color"] {
+  width: 60px;
+  height: 28px;
+  padding: 1px;
+  vertical-align: middle;
+}

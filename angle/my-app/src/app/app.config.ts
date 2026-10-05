@@ -11,6 +11,6 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     // Every HTTP request passes through actorInterceptor, which adds
     // the logged-in user's id for the server's audit log.
-    provideHttpClient(withInterceptors([actorInterceptor]))
-  ]
+    provideHttpClient(withInterceptors([actorInterceptor])),
+  ],
 };

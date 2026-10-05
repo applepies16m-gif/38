@@ -21,7 +21,7 @@ describe('UploadService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()]
+      providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(UploadService);
     http = TestBed.inject(HttpTestingController);
@@ -50,7 +50,7 @@ describe('UploadService', () => {
 
   it('sends the file to the upload endpoint as a form and returns the path', () => {
     let result = '';
-    service.uploadImage(fakeFile('image/png', 1000)).subscribe(response => {
+    service.uploadImage(fakeFile('image/png', 1000)).subscribe((response) => {
       result = response.imageUrl;
     });
 

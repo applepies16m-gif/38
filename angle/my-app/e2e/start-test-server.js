@@ -31,7 +31,7 @@ process.env.CLIENT_ORIGIN = 'http://localhost:4300';
   await client.close();
 
   require(path.join(serverDir, 'server.js'));
-})().catch(err => {
+})().catch((err) => {
   console.error('Could not start the end-to-end test server:', err.message);
   process.exit(1);
 });

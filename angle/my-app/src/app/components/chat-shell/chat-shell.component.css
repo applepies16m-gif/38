@@ -209,7 +209,6 @@
 .top-bar-right .link-button {
   color: #ffffff;
   font-size: 11px;
-  text-decoration: none;
 }
 
 .top-bar-right a:hover,
@@ -264,6 +263,7 @@ button.channel-row:focus-visible {
 /* The unread count swells twice when it appears or changes. */
 .unread-count {
   display: inline-block;
+  margin-left: 3px;
   font-weight: bold;
   animation: pulse 0.6s ease-in-out 2;
 }

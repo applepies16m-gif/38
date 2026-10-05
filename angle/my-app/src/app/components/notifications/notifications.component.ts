@@ -12,7 +12,7 @@ import { AppNotification } from '../../models/notification.model';
   standalone: true,
   imports: [CommonModule, RouterLink],
   templateUrl: './notifications.component.html',
-  styleUrl: './notifications.component.css'
+  styleUrl: './notifications.component.css',
 })
 export class NotificationsComponent implements OnInit {
   // Signals: the template reads them, so it redraws by itself when
@@ -23,9 +23,11 @@ export class NotificationsComponent implements OnInit {
   constructor(
     private router: Router,
     private authService: AuthService,
-    private notificationService: NotificationService
+    private notificationService: NotificationService,
   ) {}
 
+  // Loads the notifications this user can read, and records that they
+  // have now been read.
   ngOnInit(): void {
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser) {
@@ -37,7 +39,7 @@ export class NotificationsComponent implements OnInit {
       return;
     }
 
-    this.notificationService.getNotificationsFor(currentUser.id).subscribe(notifications => {
+    this.notificationService.getNotificationsFor(currentUser.id).subscribe((notifications) => {
       this.notifications.set(notifications);
       this.loaded.set(true);
     });
@@ -48,6 +50,8 @@ export class NotificationsComponent implements OnInit {
   // Shows an ISO date as a short local date and time.
   formatDate(isoDate: string): string {
     const date = new Date(isoDate);
-    return isNaN(date.getTime()) ? isoDate : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    return isNaN(date.getTime())
+      ? isoDate
+      : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
   }
 }

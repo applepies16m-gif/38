@@ -23,14 +23,16 @@ interface JoinStatus {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './browse-groups.component.html',
-  styleUrl: './browse-groups.component.css'
+  styleUrl: './browse-groups.component.css',
 })
 export class BrowseGroupsComponent implements OnInit {
   // Every group, searchable by title or description and shown a
   // page at a time. See PagedList for how the signals inside work.
   groupList = new PagedList<Group>(
-    (group, term) => group.title.toLowerCase().includes(term) || (group.description || '').toLowerCase().includes(term),
-    6
+    (group, term) =>
+      group.title.toLowerCase().includes(term) ||
+      (group.description || '').toLowerCase().includes(term),
+    6,
   );
   currentUser: User | null = null;
   // Groups this user has a pending request for. Read from the
@@ -43,9 +45,11 @@ export class BrowseGroupsComponent implements OnInit {
     private userService: UserService,
     private authService: AuthService,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
+  // Loads the groups, this user's current details from the server, and
+  // their pending join requests.
   ngOnInit(): void {
     const savedUser = this.authService.getCurrentUser();
     if (!savedUser) {
@@ -56,14 +60,14 @@ export class BrowseGroupsComponent implements OnInit {
     // with the server's current one.
     this.currentUser = savedUser;
 
-    this.groupService.getGroups().subscribe(groups => {
+    this.groupService.getGroups().subscribe((groups) => {
       this.groupList.setItems(groups);
     });
 
     // Bans and memberships may have changed since login, and the
     // button states depend on them, so re-read the user.
-    this.userService.getUsers().subscribe(users => {
-      const freshUser = users.find(u => u.id === savedUser.id);
+    this.userService.getUsers().subscribe((users) => {
+      const freshUser = users.find((u) => u.id === savedUser.id);
       if (!freshUser) {
         // The account no longer exists, so end the session.
         this.authService.logout();
@@ -82,10 +86,10 @@ export class BrowseGroupsComponent implements OnInit {
       this.cdr.markForCheck();
     });
 
-    this.groupService.getJoinRequests().subscribe(requests => {
+    this.groupService.getJoinRequests().subscribe((requests) => {
       this.pendingGroupIds = requests
-        .filter(r => r.userId === savedUser.id && r.status === 'pending')
-        .map(r => r.groupId);
+        .filter((r) => r.userId === savedUser.id && r.status === 'pending')
+        .map((r) => r.groupId);
       this.cdr.markForCheck();
     });
   }
@@ -99,10 +103,18 @@ export class BrowseGroupsComponent implements OnInit {
       return { label: 'Request to Join', canRequest: false, reason: '' };
     }
     if (user.isSystemBanned) {
-      return { label: 'Banned', canRequest: false, reason: 'Your account has been banned from the system.' };
+      return {
+        label: 'Banned',
+        canRequest: false,
+        reason: 'Your account has been banned from the system.',
+      };
     }
     if ((user.bannedFromGroupIds || []).includes(group.id)) {
-      return { label: 'Banned', canRequest: false, reason: 'You have been banned from this group.' };
+      return {
+        label: 'Banned',
+        canRequest: false,
+        reason: 'You have been banned from this group.',
+      };
     }
     if ((user.groupIds || []).includes(group.id)) {
       return { label: 'Member', canRequest: false, reason: '' };
@@ -113,10 +125,19 @@ export class BrowseGroupsComponent implements OnInit {
     if (group.ageLimit > 0) {
       const age = calculateAge(user.dateOfBirth);
       if (age === null) {
-        return { label: 'Request to Join', canRequest: false, reason: 'Your account has no valid date of birth, so your age can\'t be checked. Add it on your profile.' };
+        return {
+          label: 'Request to Join',
+          canRequest: false,
+          reason:
+            "Your account has no valid date of birth, so your age can't be checked. Add it on your profile.",
+        };
       }
       if (age < group.ageLimit) {
-        return { label: 'Request to Join', canRequest: false, reason: `You must be ${group.ageLimit} or older to join.` };
+        return {
+          label: 'Request to Join',
+          canRequest: false,
+          reason: `You must be ${group.ageLimit} or older to join.`,
+        };
       }
     }
     return { label: 'Request to Join', canRequest: true, reason: '' };
@@ -129,18 +150,20 @@ export class BrowseGroupsComponent implements OnInit {
       return;
     }
     this.errorMsg = '';
-    this.groupService.submitJoinRequest({
-      userId: this.currentUser.id,
-      groupId: group.id
-    }).subscribe({
-      next: () => {
-        this.pendingGroupIds.push(group.id);
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        this.errorMsg = err.error?.message || 'Something went wrong submitting your request.';
-        this.cdr.markForCheck();
-      }
-    });
+    this.groupService
+      .submitJoinRequest({
+        userId: this.currentUser.id,
+        groupId: group.id,
+      })
+      .subscribe({
+        next: () => {
+          this.pendingGroupIds.push(group.id);
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.errorMsg = err.error?.message || 'Something went wrong submitting your request.';
+          this.cdr.markForCheck();
+        },
+      });
   }
 }

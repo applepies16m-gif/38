@@ -7,8 +7,19 @@ import { User } from '../models/user.model';
 // the server. It only records what was emitted.
 class FakeSocketService {
   emitted: string[] = [];
+  identifiedAs: string[] = [];
   getSocket() {
-    return { emit: (eventName: string) => this.emitted.push(eventName) };
+    return {
+      emit: (eventName: string, data?: { userId: string }) => {
+        this.emitted.push(eventName);
+        if (eventName === 'identify' && data) {
+          this.identifiedAs.push(data.userId);
+        }
+      },
+      // The real socket calls this back when it connects; the fake
+      // never connects, so there is nothing to do.
+      on: () => {},
+    };
   }
 }
 
@@ -23,7 +34,7 @@ const sampleUser: User = {
   groupIds: ['g1'],
   bannedFromGroupIds: [],
   isSystemBanned: false,
-  appearance: { textScale: 100, hue: 300 }
+  appearance: { textScale: 100, hue: 300 },
 };
 
 // AuthService remembers who is logged in, in the browser's
@@ -36,7 +47,7 @@ describe('AuthService', () => {
     localStorage.clear();
     socket = new FakeSocketService();
     TestBed.configureTestingModule({
-      providers: [{ provide: SocketService, useValue: socket }]
+      providers: [{ provide: SocketService, useValue: socket }],
     });
     service = TestBed.inject(AuthService);
   });
@@ -59,11 +70,17 @@ describe('AuthService', () => {
     expect(localStorage.getItem('fabulari_currentUser')).not.toContain('should-never-be-stored');
   });
 
-  it('applies the user\'s chosen colour at login and removes it at logout', () => {
+  it("applies the user's chosen colour at login and removes it at logout", () => {
     service.login(sampleUser);
     expect(document.documentElement.style.getPropertyValue('--chrome-blue')).toContain('hsl(300');
     service.logout();
     expect(document.documentElement.style.getPropertyValue('--chrome-blue')).toBe('');
+  });
+
+  it('tells the server who the tab belongs to at login, so the user shows as online', () => {
+    expect(socket.identifiedAs).toEqual([]);
+    service.login(sampleUser);
+    expect(socket.identifiedAs).toEqual(['u1']);
   });
 
   it('forgets the user at logout and tells the server the tab is signed out', () => {

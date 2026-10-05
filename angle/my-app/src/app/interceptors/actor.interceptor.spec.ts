@@ -25,8 +25,8 @@ describe('actorInterceptor', () => {
       providers: [
         { provide: AuthService, useValue: auth },
         provideHttpClient(withInterceptors([actorInterceptor])),
-        provideHttpClientTesting()
-      ]
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpClient);
     server = TestBed.inject(HttpTestingController);

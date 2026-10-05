@@ -14,7 +14,7 @@ const BANNED_MESSAGE = 'This account has been banned from the system.';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './login.component.html',
-  styleUrl: './login.component.css'
+  styleUrl: './login.component.css',
 })
 export class LoginComponent implements OnInit {
   username = '';
@@ -26,9 +26,11 @@ export class LoginComponent implements OnInit {
     private route: ActivatedRoute,
     private userService: UserService,
     private authService: AuthService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
+  // Shows the banned message if another page sent the user here for
+  // that reason, and sends an empty system to first-time setup.
   ngOnInit(): void {
     // Other pages send a banned user here with ?banned=yes so the
     // reason for being logged out is shown.
@@ -36,7 +38,7 @@ export class LoginComponent implements OnInit {
       this.errorMsg = BANNED_MESSAGE;
     }
 
-    this.userService.checkBootstrapStatus().subscribe(status => {
+    this.userService.checkBootstrapStatus().subscribe((status) => {
       if (status.needsBootstrap) {
         this.router.navigate(['/bootstrap']);
       }
@@ -55,20 +57,15 @@ export class LoginComponent implements OnInit {
       next: (user) => {
         this.authService.login(user);
         const destination = user.role === 'super_admin' ? '/admin' : '/chat';
-        this.router.navigate([destination], {
-          queryParams: {
-            role: user.role,
-            user: user.username,
-            hasGroups: user.groupIds.length > 0
-          }
-        });
+        this.router.navigate([destination]);
       },
       error: (err) => {
-        this.errorMsg = err.status === 403
-          ? (err.error?.message || BANNED_MESSAGE)
-          : 'Incorrect username or password.';
+        this.errorMsg =
+          err.status === 403
+            ? err.error?.message || BANNED_MESSAGE
+            : 'Incorrect username or password.';
         this.cdr.markForCheck();
-      }
+      },
     });
   }
 }

@@ -17,24 +17,90 @@ const { connectToDatabase } = require('./db');
 const { hashPassword, backupCollections } = require('./passwords');
 
 // Every collection the app uses. All of them are emptied.
-const COLLECTIONS = ['users', 'groups', 'channels', 'messages', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests', 'reports', 'notifications', 'auditLog'];
+const COLLECTIONS = [
+  'users',
+  'groups',
+  'channels',
+  'messages',
+  'joinRequests',
+  'groupRequests',
+  'roomRequests',
+  'banRequests',
+  'reports',
+  'notifications',
+  'auditLog',
+];
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 
 // The demo accounts. "key" is only used below to link groups to
 // their admins and members.
 const DEMO_USERS = [
-  { key: 'super', username: 'super', firstName: 'Sam', lastName: 'Super', email: 'super@example.com', dateOfBirth: '1985-01-15', role: 'super_admin' },
-  { key: 'groupadmin', username: 'groupadmin', firstName: 'Grace', lastName: 'Admin', email: 'groupadmin@example.com', dateOfBirth: '1990-06-20', role: 'group_admin' },
-  { key: 'groupadmin2', username: 'groupadmin2', firstName: 'Gary', lastName: 'Admin', email: 'groupadmin2@example.com', dateOfBirth: '1992-09-05', role: 'group_admin' },
-  { key: 'member', username: 'member', firstName: 'Mia', lastName: 'Member', email: 'member@example.com', dateOfBirth: '2000-03-10', role: 'user' },
-  { key: 'newuser', username: 'newuser', firstName: 'Nick', lastName: 'Newman', email: 'newuser@example.com', dateOfBirth: '2001-11-30', role: 'user' }
+  {
+    key: 'super',
+    username: 'super',
+    firstName: 'Sam',
+    lastName: 'Super',
+    email: 'super@example.com',
+    dateOfBirth: '1985-01-15',
+    role: 'super_admin',
+  },
+  {
+    key: 'groupadmin',
+    username: 'groupadmin',
+    firstName: 'Grace',
+    lastName: 'Admin',
+    email: 'groupadmin@example.com',
+    dateOfBirth: '1990-06-20',
+    role: 'group_admin',
+  },
+  {
+    key: 'groupadmin2',
+    username: 'groupadmin2',
+    firstName: 'Gary',
+    lastName: 'Admin',
+    email: 'groupadmin2@example.com',
+    dateOfBirth: '1992-09-05',
+    role: 'group_admin',
+  },
+  {
+    key: 'member',
+    username: 'member',
+    firstName: 'Mia',
+    lastName: 'Member',
+    email: 'member@example.com',
+    dateOfBirth: '2000-03-10',
+    role: 'user',
+  },
+  {
+    key: 'newuser',
+    username: 'newuser',
+    firstName: 'Nick',
+    lastName: 'Newman',
+    email: 'newuser@example.com',
+    dateOfBirth: '2001-11-30',
+    role: 'user',
+  },
 ];
 
 // The demo groups. Each has an admin, members and channels.
 const DEMO_GROUPS = [
-  { title: 'Study Group', description: 'Help with coursework and exam prep.', ageLimit: 0, admins: ['groupadmin'], members: ['groupadmin', 'member'], channels: ['general', 'exam-prep'] },
-  { title: 'Gaming Lounge', description: 'Talk about games. Adults only.', ageLimit: 18, admins: ['groupadmin2'], members: ['groupadmin2'], channels: ['general'] }
+  {
+    title: 'Study Group',
+    description: 'Help with coursework and exam prep.',
+    ageLimit: 0,
+    admins: ['groupadmin'],
+    members: ['groupadmin', 'member'],
+    channels: ['general', 'exam-prep'],
+  },
+  {
+    title: 'Gaming Lounge',
+    description: 'Talk about games. Adults only.',
+    ageLimit: 18,
+    admins: ['groupadmin2'],
+    members: ['groupadmin2'],
+    channels: ['general'],
+  },
 ];
 
 // Reads --name or --name=value from the command line. Returns the
@@ -63,13 +129,17 @@ function clearUploads() {
   if (!fs.existsSync(UPLOAD_DIR)) {
     return 0;
   }
-  const files = fs.readdirSync(UPLOAD_DIR).filter(name => /^[a-f0-9]{32}\.(jpg|png|gif)$/.test(name));
+  const files = fs
+    .readdirSync(UPLOAD_DIR)
+    .filter((name) => /^[a-f0-9]{32}\.(jpg|png|gif)$/.test(name));
   for (const name of files) {
     fs.unlinkSync(path.join(UPLOAD_DIR, name));
   }
   return files.length;
 }
 
+// Does the reset: checks the options, backs up, empties the
+// collections, then creates the demo users, groups and channels.
 async function seed() {
   if (readOption('yes') !== true) {
     console.log('This deletes ALL users, groups, channels, messages and requests.');
@@ -108,7 +178,7 @@ async function seed() {
       online: false,
       groupIds: [],
       bannedFromGroupIds: [],
-      isSystemBanned: false
+      isSystemBanned: false,
     });
     userIds[key] = result.insertedId;
   }
@@ -118,8 +188,8 @@ async function seed() {
       title: demoGroup.title,
       description: demoGroup.description,
       ageLimit: demoGroup.ageLimit,
-      adminIds: demoGroup.admins.map(key => userIds[key].toString()),
-      channelIds: []
+      adminIds: demoGroup.admins.map((key) => userIds[key].toString()),
+      channelIds: [],
     });
     const groupId = result.insertedId.toString();
 
@@ -127,7 +197,9 @@ async function seed() {
       await db.collection('channels').insertOne({ name: channelName, groupId });
     }
     for (const key of demoGroup.members) {
-      await db.collection('users').updateOne({ _id: userIds[key] }, { $addToSet: { groupIds: groupId } });
+      await db
+        .collection('users')
+        .updateOne({ _id: userIds[key] }, { $addToSet: { groupIds: groupId } });
     }
   }
 
@@ -140,21 +212,35 @@ async function seed() {
     for (let n = 1; n <= 150; n++) {
       const number = String(n).padStart(3, '0');
       manyUsers.push({
-        username: `user${number}`, firstName: 'Test', lastName: `User ${number}`, displayName: `Test User ${number}`,
-        email: `user${number}@example.com`, dateOfBirth: '1999-01-01', role: 'user', password: passwordHash,
-        online: false, groupIds: [], bannedFromGroupIds: [], isSystemBanned: false
+        username: `user${number}`,
+        firstName: 'Test',
+        lastName: `User ${number}`,
+        displayName: `Test User ${number}`,
+        email: `user${number}@example.com`,
+        dateOfBirth: '1999-01-01',
+        role: 'user',
+        password: passwordHash,
+        online: false,
+        groupIds: [],
+        bannedFromGroupIds: [],
+        isSystemBanned: false,
       });
     }
     await db.collection('users').insertMany(manyUsers);
 
     for (let n = 1; n <= 40; n++) {
       const result = await db.collection('groups').insertOne({
-        title: `Club ${String(n).padStart(2, '0')}`, description: `Sample group number ${n} for testing long lists.`,
-        ageLimit: n % 5 === 0 ? 18 : 0, adminIds: [adminId], channelIds: []
+        title: `Club ${String(n).padStart(2, '0')}`,
+        description: `Sample group number ${n} for testing long lists.`,
+        ageLimit: n % 5 === 0 ? 18 : 0,
+        adminIds: [adminId],
+        channelIds: [],
       });
       const groupId = result.insertedId.toString();
       await db.collection('channels').insertOne({ name: 'general', groupId });
-      await db.collection('users').updateOne({ _id: userIds['groupadmin'] }, { $addToSet: { groupIds: groupId } });
+      await db
+        .collection('users')
+        .updateOne({ _id: userIds['groupadmin'] }, { $addToSet: { groupIds: groupId } });
     }
 
     const manyEntries = [];
@@ -162,12 +248,16 @@ async function seed() {
     for (let n = 120; n >= 1; n--) {
       manyEntries.push({
         type: ['group_updated', 'join_request_approved', 'member_banned', 'channel_created'][n % 4],
-        summary: `Sample audit entry number ${n}`, actorId: adminId, actorName: 'Grace Admin', actorRole: 'group_admin',
-        createdAt: new Date(Date.now() - n * 3600 * 1000).toISOString()
+        summary: `Sample audit entry number ${n}`,
+        actorId: adminId,
+        actorName: 'Grace Admin',
+        actorRole: 'group_admin',
+        createdAt: new Date(Date.now() - n * 3600 * 1000).toISOString(),
       });
     }
     await db.collection('auditLog').insertMany(manyEntries);
-    extra = ' Large data set added: 150 more users (user001 to user150), 40 more groups and 120 audit entries.';
+    extra =
+      ' Large data set added: 150 more users (user001 to user150), 40 more groups and 120 audit entries.';
   }
 
   console.log(`Removed ${removedImages} uploaded image file(s).${extra}`);
@@ -175,13 +265,15 @@ async function seed() {
   for (const demoUser of DEMO_USERS) {
     console.log(`  ${demoUser.username.padEnd(12)} ${demoUser.role}`);
   }
-  console.log(given
-    ? 'Every account uses the password you supplied.'
-    : `Every account uses this password (it is not saved anywhere else): ${password}`);
+  console.log(
+    given
+      ? 'Every account uses the password you supplied.'
+      : `Every account uses this password (it is not saved anywhere else): ${password}`,
+  );
   process.exit(0);
 }
 
-seed().catch(err => {
+seed().catch((err) => {
   console.error('Seeding failed:', err.message);
   process.exit(1);
 });

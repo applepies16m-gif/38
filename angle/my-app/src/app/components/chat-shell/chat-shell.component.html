@@ -1,7 +1,7 @@
 <div class="shell">
 
   <div class="top-bar">
-    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <img src="fabulari-logo-small.png" alt="Fabulari" class="brand-logo-img" />
     <div class="top-bar-right">
       <span class="badge" [ngClass]="currentRole === 'user' ? 'badge-user' : 'badge-admin'">
         {{ currentRole === 'user' ? 'member' : 'admin' }}
@@ -9,7 +9,7 @@
       <a *ngIf="currentRole === 'group_admin' || currentRole === 'super_admin'" routerLink="/group-admin">Manage Group</a>
       <a routerLink="/group-request">Request Group</a>
       <a routerLink="/browse-groups">Browse Groups</a>
-      <a routerLink="/notifications">Notifications<span class="unread-count" *ngIf="unreadNotifications > 0"> ({{ unreadNotifications }})</span></a>
+      <a routerLink="/notifications">Notifications<span class="unread-count" *ngIf="unreadNotifications > 0">({{ unreadNotifications }})</span></a>
       <a routerLink="/profile">My Profile</a>
       <button type="button" class="link-button" (click)="logout()">Log Out</button>
     </div>

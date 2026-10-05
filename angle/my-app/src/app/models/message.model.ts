@@ -12,7 +12,7 @@ export interface SystemMessage {
   id: string;
   channelId: string;
   type: 'join' | 'leave';
-  userId?: string;   // who joined or left, so notices about a blocked user can be hidden
+  userId?: string; // who joined or left, so notices about a blocked user can be hidden
   username: string;
   timestamp: string;
 }

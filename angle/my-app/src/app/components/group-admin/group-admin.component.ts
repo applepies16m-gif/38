@@ -16,7 +16,7 @@ import { Report } from '../../models/report.model';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './group-admin.component.html',
-  styleUrl: './group-admin.component.css'
+  styleUrl: './group-admin.component.css',
 })
 export class GroupAdminComponent implements OnInit {
   currentUserId = '';
@@ -24,7 +24,6 @@ export class GroupAdminComponent implements OnInit {
   allUsers: User[] = [];
   selectedGroupId = '';
   newChannelName = '';
-
 
   roomRequests: RoomRequest[] = [];
   banRequests: BanRequest[] = [];
@@ -38,39 +37,43 @@ export class GroupAdminComponent implements OnInit {
     private userService: UserService,
     private channelService: ChannelService,
     private reportService: ReportService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
   // Reports made by members. A Group Admin can read the ones from
   // their group; the Super Admin decides them in the Admin Panel.
   reports: Report[] = [];
 
+  // The reports made in the selected group.
   get reportsForGroup(): Report[] {
-    return this.reports.filter(r => r.groupId === this.selectedGroupId);
+    return this.reports.filter((r) => r.groupId === this.selectedGroupId);
   }
 
   // Every channel, and the ones belonging to the selected group.
   allChannels: Channel[] = [];
 
+  // The channels of the selected group.
   get channelsForGroup(): Channel[] {
-    return this.allChannels.filter(c => c.groupId === this.selectedGroupId);
+    return this.allChannels.filter((c) => c.groupId === this.selectedGroupId);
   }
 
   // Deletes a channel and everything in it. The server refuses if
   // it is the group's last channel, and tells open chat pages so
   // the channel disappears for everyone.
   deleteChannel(channel: Channel): void {
-    if (!confirm(`Delete the channel "${channel.name}" and all its messages? This cannot be undone.`)) {
+    if (
+      !confirm(`Delete the channel "${channel.name}" and all its messages? This cannot be undone.`)
+    ) {
       return;
     }
     this.channelService.deleteChannel(channel.id).subscribe({
       next: () => {
-        this.allChannels = this.allChannels.filter(c => c.id !== channel.id);
+        this.allChannels = this.allChannels.filter((c) => c.id !== channel.id);
         this.cdr.markForCheck();
       },
       error: (err) => {
         alert(err.error?.message || 'The channel could not be deleted.');
-      }
+      },
     });
   }
 
@@ -81,6 +84,8 @@ export class GroupAdminComponent implements OnInit {
     }
   }
 
+  // Only a Group Admin or Super Admin may open this page. Then loads
+  // the groups, users, requests, reports and channels it shows.
   ngOnInit(): void {
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser) {
@@ -93,84 +98,106 @@ export class GroupAdminComponent implements OnInit {
     }
     this.currentUserId = currentUser.id;
 
-    this.groupService.getGroups().subscribe(groups => {
+    this.groupService.getGroups().subscribe((groups) => {
       this.allGroups = groups;
       if (this.myGroups.length > 0) {
         this.selectedGroupId = this.myGroups[0].id;
       }
       this.cdr.markForCheck();
     });
-    this.groupService.getRoomRequests().subscribe(requests => {
-  this.roomRequests = requests;
-  this.cdr.markForCheck();
-});
+    this.groupService.getRoomRequests().subscribe((requests) => {
+      this.roomRequests = requests;
+      this.cdr.markForCheck();
+    });
 
-this.groupService.getBanRequests().subscribe(requests => {
-  this.banRequests = requests;
-  this.cdr.markForCheck();
-});
+    this.groupService.getBanRequests().subscribe((requests) => {
+      this.banRequests = requests;
+      this.cdr.markForCheck();
+    });
 
-    this.userService.getUsers().subscribe(users => {
+    this.userService.getUsers().subscribe((users) => {
       this.allUsers = users;
       this.cdr.markForCheck();
     });
 
-    this.groupService.getJoinRequests().subscribe(requests => {
+    this.groupService.getJoinRequests().subscribe((requests) => {
       this.joinRequests = requests;
       this.cdr.markForCheck();
     });
 
-    this.reportService.getReports().subscribe(reports => {
+    this.reportService.getReports().subscribe((reports) => {
       this.reports = reports;
       this.cdr.markForCheck();
     });
 
-    this.channelService.getChannels().subscribe(channels => {
+    this.channelService.getChannels().subscribe((channels) => {
       this.allChannels = channels;
       this.cdr.markForCheck();
     });
   }
 
+  // The groups this user is an admin of.
   get myGroups(): Group[] {
-    return this.allGroups.filter(g => g.adminIds.includes(this.currentUserId));
+    return this.allGroups.filter((g) => g.adminIds.includes(this.currentUserId));
   }
 
+  // The group being managed, chosen with the switcher at the top.
   get selectedGroup(): Group | undefined {
-    return this.allGroups.find(g => g.id === this.selectedGroupId);
+    return this.allGroups.find((g) => g.id === this.selectedGroupId);
   }
 
+  // The users who belong to the selected group.
   get members(): User[] {
-    return this.allUsers.filter(u => u.groupIds.includes(this.selectedGroupId));
+    return this.allUsers.filter((u) => u.groupIds.includes(this.selectedGroupId));
   }
 
+  // Join requests for the selected group that nobody has decided yet.
   get pendingJoinRequestsForGroup(): JoinRequest[] {
-    return this.joinRequests.filter(r => r.groupId === this.selectedGroupId && r.status === 'pending');
+    return this.joinRequests.filter(
+      (r) => r.groupId === this.selectedGroupId && r.status === 'pending',
+    );
   }
+
+  // Channel requests for the selected group that nobody has decided
+  // yet. Kept from an earlier design: members can no longer submit
+  // these.
   get pendingRoomRequestsForGroup(): RoomRequest[] {
-  return this.roomRequests.filter(r => r.groupId === this.selectedGroupId && r.status === 'pending');
-}
+    return this.roomRequests.filter(
+      (r) => r.groupId === this.selectedGroupId && r.status === 'pending',
+    );
+  }
 
-// Pending remove/ban requests this group's admins decide. Requests
-// about a Group Admin are left out: the Super Admin decides those.
-get pendingBanRequestsForGroup(): BanRequest[] {
-  return this.banRequests.filter(r =>
-    r.groupId === this.selectedGroupId && r.status === 'pending' && r.reviewer !== 'super_admin');
-}
+  // Pending remove/ban requests this group's admins decide. Requests
+  // about a Group Admin are left out: the Super Admin decides those.
+  get pendingBanRequestsForGroup(): BanRequest[] {
+    return this.banRequests.filter(
+      (r) =>
+        r.groupId === this.selectedGroupId &&
+        r.status === 'pending' &&
+        r.reviewer !== 'super_admin',
+    );
+  }
 
-// This admin's own pending requests about other admins of the
-// group, shown so they can see the Super Admin has not decided yet.
-get myAdminRemovalRequests(): BanRequest[] {
-  return this.banRequests.filter(r =>
-    r.groupId === this.selectedGroupId && r.status === 'pending' &&
-    r.reviewer === 'super_admin' && r.requestedBy === this.currentUserId);
-}
+  // This admin's own pending requests about other admins of the
+  // group, shown so they can see the Super Admin has not decided yet.
+  get myAdminRemovalRequests(): BanRequest[] {
+    return this.banRequests.filter(
+      (r) =>
+        r.groupId === this.selectedGroupId &&
+        r.status === 'pending' &&
+        r.reviewer === 'super_admin' &&
+        r.requestedBy === this.currentUserId,
+    );
+  }
 
+  // Switches to managing a different group.
   selectGroup(groupId: string): void {
     this.selectedGroupId = groupId;
   }
 
+  // A user's display name, for tables that only hold the user's id.
   requesterName(userId: string): string {
-    return this.allUsers.find(u => u.id === userId)?.displayName || userId;
+    return this.allUsers.find((u) => u.id === userId)?.displayName || userId;
   }
 
   // Approves a join request. The server checks the join rules
@@ -181,7 +208,7 @@ get myAdminRemovalRequests(): BanRequest[] {
     this.groupService.updateJoinRequest(req.id, 'approved').subscribe({
       next: () => {
         req.status = 'approved';
-        const user = this.allUsers.find(u => u.id === req.userId);
+        const user = this.allUsers.find((u) => u.id === req.userId);
         if (user && !user.groupIds.includes(req.groupId)) {
           user.groupIds.push(req.groupId);
         }
@@ -193,10 +220,12 @@ get myAdminRemovalRequests(): BanRequest[] {
         req.rejectionReason = reason;
         alert(`This request can't be approved and has been rejected: ${reason}`);
         this.cdr.markForCheck();
-      }
+      },
     });
   }
 
+  // Rejects a join request, asking for a reason that the user will
+  // see.
   rejectJoinRequest(req: JoinRequest): void {
     const reason = prompt('Reason for rejecting this join request?');
     if (reason === null) {
@@ -209,63 +238,71 @@ get myAdminRemovalRequests(): BanRequest[] {
     });
   }
 
- approveRoomRequest(req: RoomRequest): void {
-  this.groupService.updateRoomRequest(req.id, 'approved').subscribe(() => {
-    req.status = 'approved';
-    this.cdr.markForCheck();
-  });
-}
-
-rejectRoomRequest(req: RoomRequest): void {
-  const reason = prompt('Reason for rejecting this room request?');
-  if (reason === null) {
-    return;
-  }
-  this.groupService.updateRoomRequest(req.id, 'rejected', reason).subscribe(() => {
-    req.status = 'rejected';
-    req.rejectionReason = reason;
-    this.cdr.markForCheck();
-  });
-}
-
-// Approves a member's request to remove or ban someone. The server
-// carries it out; this then updates the copy held by the page so
-// the Members table is right without a reload.
-approveBanRequest(req: BanRequest): void {
-  this.groupService.updateBanRequest(req.id, 'approved').subscribe({
-    next: () => {
+  // Approves a channel request; the server then creates the channel.
+  // Kept from an earlier design.
+  approveRoomRequest(req: RoomRequest): void {
+    this.groupService.updateRoomRequest(req.id, 'approved').subscribe(() => {
       req.status = 'approved';
-      const target = this.allUsers.find(u => u.id === req.targetUserId);
-      if (target) {
-        target.groupIds = target.groupIds.filter(id => id !== req.groupId);
-        if (req.action !== 'remove') {
-          target.bannedFromGroupIds = [...target.bannedFromGroupIds, req.groupId];
-        }
-      }
       this.cdr.markForCheck();
-    },
-    error: (err) => {
-      alert(err.error?.message || 'The request could not be approved.');
-    }
-  });
-}
-
-rejectBanRequest(req: BanRequest): void {
-  const reason = prompt('Reason for rejecting this ban request?');
-  if (reason === null) {
-    return;
+    });
   }
-  this.groupService.updateBanRequest(req.id, 'rejected', reason).subscribe(() => {
-    req.status = 'rejected';
-    req.rejectionReason = reason;
-    this.cdr.markForCheck();
-  });
-}
 
+  // Rejects a channel request with a reason. Kept from an earlier
+  // design.
+  rejectRoomRequest(req: RoomRequest): void {
+    const reason = prompt('Reason for rejecting this room request?');
+    if (reason === null) {
+      return;
+    }
+    this.groupService.updateRoomRequest(req.id, 'rejected', reason).subscribe(() => {
+      req.status = 'rejected';
+      req.rejectionReason = reason;
+      this.cdr.markForCheck();
+    });
+  }
+
+  // Approves a member's request to remove or ban someone. The server
+  // carries it out; this then updates the copy held by the page so
+  // the Members table is right without a reload.
+  approveBanRequest(req: BanRequest): void {
+    this.groupService.updateBanRequest(req.id, 'approved').subscribe({
+      next: () => {
+        req.status = 'approved';
+        const target = this.allUsers.find((u) => u.id === req.targetUserId);
+        if (target) {
+          target.groupIds = target.groupIds.filter((id) => id !== req.groupId);
+          if (req.action !== 'remove') {
+            target.bannedFromGroupIds = [...target.bannedFromGroupIds, req.groupId];
+          }
+        }
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The request could not be approved.');
+      },
+    });
+  }
+
+  // Rejects a request to remove or ban a member, asking for a reason.
+  rejectBanRequest(req: BanRequest): void {
+    const reason = prompt('Reason for rejecting this ban request?');
+    if (reason === null) {
+      return;
+    }
+    this.groupService.updateBanRequest(req.id, 'rejected', reason).subscribe(() => {
+      req.status = 'rejected';
+      req.rejectionReason = reason;
+      this.cdr.markForCheck();
+    });
+  }
+
+  // True if a member is one of the selected group's admins.
   isAdmin(member: User): boolean {
     return this.selectedGroup?.adminIds.includes(member.id) || false;
   }
 
+  // Makes a member an admin of the selected group, and a Group Admin
+  // if they were a plain user.
   promoteToAdmin(member: User): void {
     const group = this.selectedGroup;
     if (!group || group.adminIds.includes(member.id)) {
@@ -283,6 +320,9 @@ rejectBanRequest(req: BanRequest): void {
     });
   }
 
+  // Stops a user being an admin of the selected group. A group must
+  // keep at least one admin, and the user's role only drops to "user"
+  // if they administer no other group.
   demoteAdmin(member: User): void {
     const group = this.selectedGroup;
     if (!group) {
@@ -292,14 +332,14 @@ rejectBanRequest(req: BanRequest): void {
       alert('A group must always have at least one admin.');
       return;
     }
-    const updatedAdminIds = group.adminIds.filter(id => id !== member.id);
+    const updatedAdminIds = group.adminIds.filter((id) => id !== member.id);
     this.groupService.updateGroup(group.id, { adminIds: updatedAdminIds }).subscribe(() => {
       group.adminIds = updatedAdminIds;
 
       // Only downgrade their account role to plain "user" if they
       // are not still an admin of some other group.
-      const stillAdminElsewhere = this.allGroups.some(g =>
-        g.id !== group.id && g.adminIds.includes(member.id)
+      const stillAdminElsewhere = this.allGroups.some(
+        (g) => g.id !== group.id && g.adminIds.includes(member.id),
       );
       if (!stillAdminElsewhere && member.role === 'group_admin') {
         this.userService.updateUser(member.id, { role: 'user' }).subscribe(() => {
@@ -324,21 +364,23 @@ rejectBanRequest(req: BanRequest): void {
     if (!confirmed) {
       return;
     }
-    const updatedGroupIds = member.groupIds.filter(id => id !== group.id);
+    const updatedGroupIds = member.groupIds.filter((id) => id !== group.id);
     const updatedBannedIds = [...member.bannedFromGroupIds, group.id];
-    this.userService.updateUser(member.id, {
-      groupIds: updatedGroupIds,
-      bannedFromGroupIds: updatedBannedIds
-    }).subscribe({
-      next: () => {
-        member.groupIds = updatedGroupIds;
-        member.bannedFromGroupIds = updatedBannedIds;
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        alert(err.error?.message || 'The member could not be banned.');
-      }
-    });
+    this.userService
+      .updateUser(member.id, {
+        groupIds: updatedGroupIds,
+        bannedFromGroupIds: updatedBannedIds,
+      })
+      .subscribe({
+        next: () => {
+          member.groupIds = updatedGroupIds;
+          member.bannedFromGroupIds = updatedBannedIds;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'The member could not be banned.');
+        },
+      });
   }
 
   // Asks the Super Admin to remove or ban another admin of this
@@ -349,67 +391,79 @@ rejectBanRequest(req: BanRequest): void {
     if (!group) {
       return;
     }
-    const reason = prompt(`Why should ${member.displayName} be ${action === 'ban' ? 'banned from' : 'removed from'} ${group.title}? This goes to the Super Admin.`);
+    const reason = prompt(
+      `Why should ${member.displayName} be ${action === 'ban' ? 'banned from' : 'removed from'} ${group.title}? This goes to the Super Admin.`,
+    );
     if (reason === null) {
       return;
     }
-    this.groupService.submitBanRequest({
-      requestedBy: this.currentUserId,
-      targetUserId: member.id,
-      groupId: group.id,
-      action,
-      reason
-    }).subscribe({
-      next: (newRequest) => {
-        this.banRequests = [...this.banRequests, newRequest];
-        alert('Your request has been sent to the Super Admin.');
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        alert(err.error?.message || 'The request could not be sent.');
-      }
-    });
+    this.groupService
+      .submitBanRequest({
+        requestedBy: this.currentUserId,
+        targetUserId: member.id,
+        groupId: group.id,
+        action,
+        reason,
+      })
+      .subscribe({
+        next: (newRequest) => {
+          this.banRequests = [...this.banRequests, newRequest];
+          alert('Your request has been sent to the Super Admin.');
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'The request could not be sent.');
+        },
+      });
   }
 
+  // Saves the group's title, description, age limit and colour. The
+  // server checks each one.
   saveGroupSettings(): void {
     const group = this.selectedGroup;
     if (!group) {
       return;
     }
-    this.groupService.updateGroup(group.id, {
-      title: group.title,
-      description: group.description,
-      ageLimit: group.ageLimit,
-      theme: group.theme || ''
-    }).subscribe({
-      next: () => {
-        alert('Group settings saved.');
-      },
-      // The server checks the title, description and age limit and
-      // says which one is wrong.
-      error: (err) => {
-        alert(err.error?.message || 'The group settings could not be saved.');
-      }
-    });
+    this.groupService
+      .updateGroup(group.id, {
+        title: group.title,
+        description: group.description,
+        ageLimit: group.ageLimit,
+        theme: group.theme || '',
+      })
+      .subscribe({
+        next: () => {
+          alert('Group settings saved.');
+        },
+        // The server checks the title, description and age limit and
+        // says which one is wrong.
+        error: (err) => {
+          alert(err.error?.message || 'The group settings could not be saved.');
+        },
+      });
   }
+
+  // Adds a channel to the selected group.
   createChannel(): void {
-  const group = this.selectedGroup;
-  if (!group || !this.newChannelName.trim()) {
-    return;
-  }
-  this.channelService.createChannel({
-    name: this.newChannelName,
-    groupId: group.id
-  }).subscribe({
-    next: (createdChannel) => {
-      this.allChannels = [...this.allChannels, createdChannel];
-      this.newChannelName = '';
-      alert('Channel created.');
-      this.cdr.markForCheck();
-    },
-    error: (err) => {
-      alert(err.error?.message || 'The channel could not be created.');
+    const group = this.selectedGroup;
+    if (!group || !this.newChannelName.trim()) {
+      return;
     }
-  });
-}
+    this.channelService
+      .createChannel({
+        name: this.newChannelName,
+        groupId: group.id,
+      })
+      .subscribe({
+        next: (createdChannel) => {
+          this.allChannels = [...this.allChannels, createdChannel];
+          this.newChannelName = '';
+          alert('Channel created.');
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'The channel could not be created.');
+        },
+      });
+  }
 }

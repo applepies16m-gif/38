@@ -7,7 +7,7 @@ import { environment } from '../../environments/environment';
 const API_URL = `${environment.serverUrl}/api/messages`;
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class MessageService {
   constructor(private http: HttpClient) {}

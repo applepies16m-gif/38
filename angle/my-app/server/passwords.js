@@ -20,7 +20,15 @@ const HASH_ROUNDS = 10;
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, 'backups');
 
 // The collections saved by a backup.
-const BACKUP_COLLECTIONS = ['users', 'groups', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests', 'reports'];
+const BACKUP_COLLECTIONS = [
+  'users',
+  'groups',
+  'joinRequests',
+  'groupRequests',
+  'roomRequests',
+  'banRequests',
+  'reports',
+];
 
 // Every bcrypt hash has this shape: $2a$ or $2b$, the rounds, then
 // 53 characters. Anything else in the password field is plain text.
@@ -73,7 +81,9 @@ async function backupCollections(db, label) {
 async function convertPlainTextPasswords(db) {
   const users = db.collection('users');
   const all = await users.find({}, { projection: { password: 1 } }).toArray();
-  const plain = all.filter(u => typeof u.password === 'string' && u.password !== '' && !isHashed(u.password));
+  const plain = all.filter(
+    (u) => typeof u.password === 'string' && u.password !== '' && !isHashed(u.password),
+  );
   if (plain.length === 0) {
     return { converted: 0, backupPath: null };
   }
@@ -82,10 +92,16 @@ async function convertPlainTextPasswords(db) {
   for (const user of plain) {
     await users.updateOne(
       { _id: user._id, password: user.password },
-      { $set: { password: await hashPassword(user.password) } }
+      { $set: { password: await hashPassword(user.password) } },
     );
   }
   return { converted: plain.length, backupPath };
 }
 
-module.exports = { isHashed, hashPassword, passwordMatches, backupCollections, convertPlainTextPasswords };
+module.exports = {
+  isHashed,
+  hashPassword,
+  passwordMatches,
+  backupCollections,
+  convertPlainTextPasswords,
+};

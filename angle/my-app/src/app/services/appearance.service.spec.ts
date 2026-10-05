@@ -27,7 +27,10 @@ describe('AppearanceService', () => {
     });
 
     it('fills in whichever value is missing', () => {
-      expect(service.clean({ hue: 10 })).toEqual({ textScale: DEFAULT_APPEARANCE.textScale, hue: 10 });
+      expect(service.clean({ hue: 10 })).toEqual({
+        textScale: DEFAULT_APPEARANCE.textScale,
+        hue: 10,
+      });
     });
   });
 
