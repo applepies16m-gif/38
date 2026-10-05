@@ -23,6 +23,9 @@
         <label>Description ({{ descriptionCharsLeft }} characters left)</label>
         <textarea [(ngModel)]="proposedDescription" maxlength="250" rows="3" placeholder="What's this group about?"></textarea>
 
+        <label>Minimum Age (0 = no limit)</label>
+        <input type="number" min="0" max="120" step="1" [(ngModel)]="proposedAgeLimit" />
+
         <div *ngIf="errorMsg" class="reason-text">{{ errorMsg }}</div>
         <div *ngIf="submitted" class="success-text">Request submitted — you'll be notified once it's reviewed.</div>
 
@@ -39,7 +42,7 @@
           </thead>
           <tbody>
             <tr *ngFor="let r of myRequests">
-              <td>{{ r.proposedTitle }}</td>
+              <td>{{ r.proposedTitle }}<span *ngIf="r.proposedAgeLimit" class="reason-text"> (ages {{ r.proposedAgeLimit }}+)</span></td>
               <td>
                 <span class="badge" [ngClass]="r.status === 'pending' ? 'badge-user' : (r.status === 'approved' ? 'badge-online' : 'badge-admin')">
                   {{ r.status }}

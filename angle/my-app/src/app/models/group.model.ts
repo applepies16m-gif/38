@@ -35,6 +35,7 @@ export interface GroupCreationRequest {
   requestedBy: string;   // userId — becomes the group's admin once approved
   proposedTitle: string;
   proposedDescription: string;
+  proposedAgeLimit?: number;   // minimum age for the new group; 0 or missing = no limit
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
 }

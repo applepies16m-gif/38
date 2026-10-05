@@ -97,6 +97,13 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     });
 
+    // Someone deleted one of their messages: take it off this
+    // screen too. Nothing replaces it.
+    this.socketService.getSocket().on('messageDeleted', (data: { id: string; channelId: string }) => {
+      this.messages = this.messages.filter(m => m.id !== data.id);
+      this.cdr.markForCheck();
+    });
+
     // The server refused a join or a message, because this user is
     // not a member of the channel's group or has been banned from
     // it. Close the channel, say why, and re-read the user from the
@@ -183,6 +190,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     socket.off('userJoined');
     socket.off('userLeft');
     socket.off('channelDenied');
+    socket.off('messageDeleted');
 
     if (this.activeChannelId) {
       socket.emit('leaveChannel', {
@@ -315,6 +323,19 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       // threadItems can sort both kinds together correctly.
       timestamp: new Date().toISOString()
     });
+  }
+
+  // Asks the server to delete one of this user's own messages. The
+  // server checks it really is theirs, then tells everyone in the
+  // channel, including this window, to remove it.
+  deleteMessage(message: ChatMessage): void {
+    if (message.senderId !== this.currentUserId) {
+      return;
+    }
+    if (!confirm('Delete this message for everyone? This cannot be undone.')) {
+      return;
+    }
+    this.socketService.getSocket().emit('deleteMessage', { messageId: message.id });
   }
 
   // Full address for a message's image, for the <img> in the thread.

@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const { ObjectId } = require('mongodb');
 const { connectToDatabase, getDb } = require('./db');
+const { hashPassword, passwordMatches, convertPlainTextPasswords } = require('./passwords');
 
 const app = express();
 const PORT = 3000;
@@ -87,6 +88,13 @@ const io = new Server(httpServer, {
 function toClientShape(doc) {
   const { _id, ...rest } = doc;
   return { ...rest, id: _id.toString() };
+}
+
+// A user as sent to a browser: the same as toClientShape, but
+// never with the password, even though it is stored as a hash.
+function toSafeUser(doc) {
+  const { password, ...safeUser } = toClientShape(doc);
+  return safeUser;
 }
 
 // Returns a message's timestamp as an ISO string. Messages saved
@@ -353,6 +361,10 @@ async function prepareNewUser(body) {
     return bad(INVALID_DATE_OF_BIRTH_MESSAGE);
   }
 
+  // Last step, once everything is known to be valid: the password
+  // is replaced by its hash, so the plain text is never stored.
+  fields.password = await hashPassword(fields.password);
+
   return { fields };
 }
 
@@ -424,6 +436,12 @@ async function checkUserUpdates(updates, existing) {
   // /api/upload, never an outside address.
   if (updates.profilePicUrl !== undefined && !isUploadedImageUrl(updates.profilePicUrl)) {
     return bad('A profile picture must be an image uploaded through the app.');
+  }
+
+  // Last step, once every change is known to be valid: a new
+  // password is replaced by its hash before it is stored.
+  if (updates.password !== undefined) {
+    updates.password = await hashPassword(updates.password);
   }
 
   return null;
@@ -508,14 +526,14 @@ app.post('/api/bootstrap', async (req, res) => {
     isSystemBanned: false
   };
   const result = await getDb().collection('users').insertOne(newSuperAdmin);
-  res.status(201).json(toClientShape({ ...newSuperAdmin, _id: result.insertedId }));
+  res.status(201).json(toSafeUser({ ...newSuperAdmin, _id: result.insertedId }));
 });
 
 // --- Users ---
 
 app.get('/api/users', async (req, res) => {
   const users = await getDb().collection('users').find().toArray();
-  res.json(users.map(toClientShape));
+  res.json(users.map(toSafeUser));
 });
 
 app.post('/api/login', async (req, res) => {
@@ -524,7 +542,9 @@ app.post('/api/login', async (req, res) => {
     username: normaliseUsername(username)
   });
 
-  if (!user || user.password !== password) {
+  // The typed password is hashed the same way and compared with
+  // the stored hash; the server never holds the real password.
+  if (!user || !(await passwordMatches(password, user.password))) {
     return res.status(401).json({ message: 'Invalid username or password.' });
   }
   // Checked only after the password, so the ban is not revealed to
@@ -533,8 +553,7 @@ app.post('/api/login', async (req, res) => {
     return res.status(403).json({ message: SYSTEM_BANNED_MESSAGE });
   }
 
-  const { password: _pw, ...safeUser } = toClientShape(user);
-  res.json(safeUser);
+  res.json(toSafeUser(user));
 });
 
 app.post('/api/users', async (req, res) => {
@@ -554,7 +573,7 @@ app.post('/api/users', async (req, res) => {
     isSystemBanned: false
   };
   const result = await getDb().collection('users').insertOne(newUser);
-  res.status(201).json(toClientShape({ ...newUser, _id: result.insertedId }));
+  res.status(201).json(toSafeUser({ ...newUser, _id: result.insertedId }));
 });
 
 // Deletes an account. Used by the Admin Panel's "remove" and by
@@ -650,8 +669,35 @@ app.post('/api/groups', async (req, res) => {
     return res.status(400).json({ message: problem });
   }
 
+  // A group must have an admin from the moment it exists, and each
+  // admin must be a real account. Without this a group could be
+  // created that nobody is able to manage.
+  if (fields.adminIds.length === 0) {
+    return res.status(400).json({ message: 'A group needs at least one admin.' });
+  }
+  const users = getDb().collection('users');
+  const admins = [];
+  for (const adminId of fields.adminIds) {
+    const admin = ObjectId.isValid(adminId) ? await users.findOne({ _id: new ObjectId(adminId) }) : null;
+    if (!admin) {
+      return res.status(400).json({ message: 'Every group admin must be an existing user.' });
+    }
+    admins.push(admin);
+  }
+
   const result = await getDb().collection('groups').insertOne(fields);
   const newGroup = toClientShape({ ...fields, _id: result.insertedId });
+
+  // Each admin becomes a member of the group, and a plain user is
+  // promoted to Group Admin. Doing it here, not in the browser,
+  // means the group and its admin's account can't disagree.
+  for (const admin of admins) {
+    const changes = { $addToSet: { groupIds: newGroup.id } };
+    if (admin.role === 'user') {
+      changes.$set = { role: 'group_admin' };
+    }
+    await users.updateOne({ _id: admin._id }, changes);
+  }
 
   // Every group needs somewhere to chat from the moment it exists,
   // rather than requiring a separate manual step to add the first
@@ -774,7 +820,13 @@ app.post('/api/group-requests', async (req, res) => {
   const body = req.body || {};
   // A proposed group follows the same title and description rules
   // as a real one, so an approved request can't create a bad group.
-  const proposed = { title: body.proposedTitle, description: body.proposedDescription };
+  // The minimum age is optional on the form; left out, it is 0,
+  // which means no limit.
+  const proposed = {
+    title: body.proposedTitle,
+    description: body.proposedDescription,
+    ageLimit: body.proposedAgeLimit === undefined ? 0 : body.proposedAgeLimit
+  };
   const problem = checkGroupFields(proposed, true);
   if (problem) {
     return res.status(400).json({ message: problem });
@@ -793,6 +845,7 @@ app.post('/api/group-requests', async (req, res) => {
     requestedBy: body.requestedBy,
     proposedTitle: proposed.title,
     proposedDescription: proposed.description,
+    proposedAgeLimit: proposed.ageLimit,
     status: 'pending'
   };
   const result = await getDb().collection('groupRequests').insertOne(newRequest);
@@ -800,11 +853,20 @@ app.post('/api/group-requests', async (req, res) => {
 });
 
 app.put('/api/group-requests/:id', async (req, res) => {
-  const { status, rejectionReason } = req.body;
-  await getDb().collection('groupRequests').updateOne(
+  const { status, rejectionReason } = req.body || {};
+  if (status !== 'approved' && status !== 'rejected') {
+    return res.status(400).json({ message: 'Status must be approved or rejected.' });
+  }
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ message: 'Group request not found.' });
+  }
+  const result = await getDb().collection('groupRequests').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: { status, rejectionReason } }
   );
+  if (result.matchedCount === 0) {
+    return res.status(404).json({ message: 'Group request not found.' });
+  }
   res.status(204).send();
 });
 // --- Room Requests ---
@@ -955,7 +1017,11 @@ app.post('/api/upload', (req, res) => {
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
-  socket.on('joinChannel', async ({ channelId, userId, username } = {}) => {
+  // Each handler below reads its fields from "payload || {}", so a
+  // client that sends nothing at all (null) is ignored instead of
+  // crashing the server.
+  socket.on('joinChannel', async (payload) => {
+    const { channelId, userId, username } = payload || {};
     // A refused join stores nothing and announces nothing; only
     // the refused socket is told.
     if (!(await canUseChannel(userId, channelId))) {
@@ -977,7 +1043,8 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('leaveChannel', ({ channelId } = {}) => {
+  socket.on('leaveChannel', (payload) => {
+    const { channelId } = payload || {};
     // Only announce a leave for a socket that really was in the
     // room, so a refused user never produces a "left" notice.
     if (!socket.rooms.has(channelId)) {
@@ -991,7 +1058,30 @@ io.on('connection', (socket) => {
     });
   });
 
- socket.on('sendMessage', async (message = {}) => {
+  // Deletes one message. Only its sender may do this, and "sender"
+  // means the user this socket joined as, not an id sent with the
+  // request. Messages can be deleted but never edited. Nothing is
+  // loaded to fill the gap, so a channel may then hold fewer than 5.
+  socket.on('deleteMessage', async (payload) => {
+    const { messageId } = payload || {};
+    const userId = socket.data.userId;
+    if (!userId || typeof messageId !== 'string' || !ObjectId.isValid(messageId)) {
+      return;
+    }
+    const messages = getDb().collection('messages');
+    const message = await messages.findOne({ _id: new ObjectId(messageId) });
+    if (!message || message.senderId !== userId || !socket.rooms.has(message.channelId)) {
+      return;
+    }
+
+    await messages.deleteOne({ _id: message._id });
+    deleteUploadedImage(message.imageUrl);
+    // Everyone with the channel open removes it from their screen.
+    io.to(message.channelId).emit('messageDeleted', { id: messageId, channelId: message.channelId });
+  });
+
+ socket.on('sendMessage', async (payload) => {
+  const message = payload || {};
   // The sender is the user this socket joined as, not whatever id
   // the message claims. The socket must be in the channel's room
   // and the user must still be allowed in it -- a ban can arrive
@@ -1056,7 +1146,14 @@ io.on('connection', (socket) => {
   });
 });
 
-connectToDatabase().then(() => {
+connectToDatabase().then(async () => {
+  // Accounts created before passwords were hashed are converted
+  // here, once. On every later start there is nothing to convert.
+  const conversion = await convertPlainTextPasswords(getDb());
+  if (conversion.converted > 0) {
+    console.log(`Hashed ${conversion.converted} plain-text password(s). Backup saved to ${conversion.backupPath}`);
+  }
+
   httpServer.listen(PORT, () => {
     console.log(`Fabulari server running on http://localhost:${PORT}`);
   });

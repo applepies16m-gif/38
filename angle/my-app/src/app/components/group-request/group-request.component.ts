@@ -16,6 +16,7 @@ import { GroupService } from '../../services/group.service';
 export class GroupRequestComponent implements OnInit {
   proposedTitle = '';
   proposedDescription = '';
+  proposedAgeLimit: number | null = 0; // 0 = no minimum age; null while the box is empty
   submitted = false;
   errorMsg = '';
 
@@ -68,6 +69,11 @@ export class GroupRequestComponent implements OnInit {
       this.errorMsg = 'A title and a description are both required.';
       return;
     }
+    const ageLimit = this.proposedAgeLimit;
+    if (ageLimit === null || !Number.isInteger(ageLimit) || ageLimit < 0 || ageLimit > 120) {
+      this.errorMsg = 'Minimum age must be a whole number from 0 to 120 (0 means no limit).';
+      return;
+    }
     const currentUser = this.authService.getCurrentUser();
     if (!currentUser) {
       return;
@@ -75,12 +81,14 @@ export class GroupRequestComponent implements OnInit {
     this.groupService.submitGroupRequest({
       requestedBy: currentUser.id,
       proposedTitle: this.proposedTitle,
-      proposedDescription: this.proposedDescription
+      proposedDescription: this.proposedDescription,
+      proposedAgeLimit: ageLimit
     }).subscribe({
       next: (newRequest) => {
         this.myRequests.unshift(newRequest);
         this.proposedTitle = '';
         this.proposedDescription = '';
+        this.proposedAgeLimit = 0;
         this.submitted = true;
         this.cdr.markForCheck();
       },

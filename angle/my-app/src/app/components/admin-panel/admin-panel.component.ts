@@ -30,6 +30,7 @@ export class AdminPanelComponent implements OnInit {
   newPassword = '';
   newDateOfBirth = ''; // optional for accounts an admin creates
   newGroupName = '';
+  newGroupAdminId = ''; // the user chosen as the new group's admin
 
   constructor(
     private userService: UserService,
@@ -117,21 +118,58 @@ export class AdminPanelComponent implements OnInit {
     });
   }
 
-  createGroup(): void {
-    if (!this.newGroupName.trim()) {
+  // Users who can be chosen as a new group's admin: anyone who is
+  // not a Super Admin and not banned from the system.
+  get possibleGroupAdmins(): User[] {
+    return this.users.filter(u => u.role !== 'super_admin' && !u.isSystemBanned);
+  }
+
+  // Display name for a user id, for tables that only hold the id.
+  userName(userId: string): string {
+    return this.users.find(u => u.id === userId)?.displayName || userId;
+  }
+
+  // The server makes a new group's admin a member and a Group
+  // Admin. This repeats that on the copy held by this page, so the
+  // Users table is right without reloading.
+  private showAsGroupAdmin(userId: string, groupId: string): void {
+    const user = this.users.find(u => u.id === userId);
+    if (!user) {
       return;
     }
+    if (!user.groupIds.includes(groupId)) {
+      user.groupIds = [...user.groupIds, groupId];
+    }
+    if (user.role === 'user') {
+      user.role = 'group_admin';
+    }
+  }
+
+  // Creates a group directly. A group must have an admin from the
+  // start, so one has to be chosen; the server refuses otherwise.
+  createGroup(): void {
+    if (!this.newGroupName.trim()) {
+      alert('Enter a name for the group.');
+      return;
+    }
+    if (!this.newGroupAdminId) {
+      alert('Choose who will be the group\'s admin.');
+      return;
+    }
+    const adminId = this.newGroupAdminId;
     const newGroup: Partial<Group> = {
       title: this.newGroupName,
       description: '',
       ageLimit: 0,
-      adminIds: [],
+      adminIds: [adminId],
       channelIds: []
     };
     this.groupService.createGroup(newGroup).subscribe({
       next: (createdGroup) => {
         this.groups.push(createdGroup);
+        this.showAsGroupAdmin(adminId, createdGroup.id);
         this.newGroupName = '';
+        this.newGroupAdminId = '';
         this.cdr.markForCheck();
       },
       error: (err) => {
@@ -166,38 +204,30 @@ export class AdminPanelComponent implements OnInit {
     });
   }
 
+// Approves a group request: creates the group with the title,
+// description and minimum age that were asked for, with the
+// requester as its admin. The server makes the requester a member
+// and a Group Admin as part of creating the group.
 approveGroupRequest(req: GroupCreationRequest): void {
   const newGroup: Partial<Group> = {
     title: req.proposedTitle,
     description: req.proposedDescription,
-    ageLimit: 0,
+    ageLimit: req.proposedAgeLimit || 0,
     adminIds: [req.requestedBy],
     channelIds: []
   };
-  this.groupService.createGroup(newGroup).subscribe(createdGroup => {
-    this.groups.push(createdGroup);
-
-    // The requester becomes this group's admin -- both their role
-    // and their group membership need updating, since the Group
-    // Admin dashboard's route guard checks role specifically.
-    const requester = this.users.find(u => u.id === req.requestedBy);
-    const updatedGroupIds = requester
-      ? [...requester.groupIds, createdGroup.id]
-      : [createdGroup.id];
-
-    this.userService.updateUser(req.requestedBy, {
-      role: 'group_admin',
-      groupIds: updatedGroupIds
-    }).subscribe(() => {
-      if (requester) {
-        requester.role = 'group_admin';
-        requester.groupIds = updatedGroupIds;
-      }
+  this.groupService.createGroup(newGroup).subscribe({
+    next: (createdGroup) => {
+      this.groups.push(createdGroup);
+      this.showAsGroupAdmin(req.requestedBy, createdGroup.id);
       this.groupService.updateGroupRequest(req.id, 'approved').subscribe(() => {
         req.status = 'approved';
         this.cdr.markForCheck();
       });
-    });
+    },
+    error: (err) => {
+      alert(err.error?.message || 'The group could not be created.');
+    }
   });
 }
 

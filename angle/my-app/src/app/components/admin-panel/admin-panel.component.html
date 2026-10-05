@@ -88,7 +88,14 @@
         </table>
 
         <div class="form-row" style="margin-top: 8px;">
-          <input type="text" placeholder="New group name" [(ngModel)]="newGroupName" />
+          <input type="text" placeholder="New group name" maxlength="30" [(ngModel)]="newGroupName" />
+          <label>
+            Group admin
+            <select [(ngModel)]="newGroupAdminId">
+              <option value="">-- choose a user --</option>
+              <option *ngFor="let u of possibleGroupAdmins" [value]="u.id">{{ u.displayName }} ({{ u.username }})</option>
+            </select>
+          </label>
           <button class="btn" (click)="createGroup()">Create Group</button>
         </div>
       </div>
@@ -98,12 +105,13 @@
   <div class="panel-body">
     <table class="list-table" *ngIf="groupRequests.length; else noGroupReq">
       <thead>
-        <tr><th>Proposed Title</th><th>Requested By</th><th>Status</th><th></th></tr>
+        <tr><th>Proposed Title</th><th>Minimum Age</th><th>Requested By</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
         <tr *ngFor="let gr of groupRequests">
           <td>{{ gr.proposedTitle }}</td>
-          <td>{{ gr.requestedBy }}</td>
+          <td>{{ gr.proposedAgeLimit ? gr.proposedAgeLimit + '+' : 'none' }}</td>
+          <td>{{ userName(gr.requestedBy) }}</td>
           <td>
             <span class="badge" [ngClass]="gr.status === 'pending' ? 'badge-user' : (gr.status === 'approved' ? 'badge-online' : 'badge-admin')">
               {{ gr.status }}

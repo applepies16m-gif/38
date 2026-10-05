@@ -63,6 +63,7 @@
           <div class="msg-row" *ngIf="!isSystemMessage(item)">
             <span class="msg-sender">{{ item.senderName }}</span>
             <span class="msg-time">{{ formatTime(item.timestamp) }}</span>
+            <a class="msg-delete" *ngIf="item.senderId === currentUserId" (click)="deleteMessage(item)">delete</a>
             <div class="msg-text" *ngIf="item.text">{{ item.text }}</div>
             <img *ngIf="item.imageUrl" [src]="imageSrc(item.imageUrl)" class="msg-image" alt="Image sent by {{ item.senderName }}" />
           </div>
