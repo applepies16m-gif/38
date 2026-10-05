@@ -23,12 +23,21 @@ function toClientShape(doc) {
   const { _id, ...rest } = doc;
   return { ...rest, id: _id.toString() };
 }
+
+// Returns a message's timestamp as an ISO string. Messages saved
+// before timestamps were standardised hold display text such as
+// "01:47 PM", which isn't a real date, so for those the creation
+// time MongoDB stores inside every _id is used instead.
+function resolveTimestamp(doc) {
+  const parsed = new Date(doc.timestamp);
+  if (isNaN(parsed.getTime())) {
+    return doc._id.getTimestamp().toISOString();
+  }
+  return doc.timestamp;
+}
+
 // --- Bootstrap ---
 
-// Tells the frontend whether the very first Super Admin still needs
-// to be created. True only when the users collection is completely
-// empty -- the moment one user exists, this permanently returns
-// false, which is what "disables" the bootstrap process.
 app.get('/api/bootstrap-status', async (req, res) => {
   const userCount = await getDb().collection('users').countDocuments();
   res.json({ needsBootstrap: userCount === 0 });
@@ -37,9 +46,6 @@ app.get('/api/bootstrap-status', async (req, res) => {
 app.post('/api/bootstrap', async (req, res) => {
   const userCount = await getDb().collection('users').countDocuments();
   if (userCount > 0) {
-    // Server-side enforcement, not just a UI check -- someone
-    // calling this endpoint directly after real users already
-    // exist should never be able to create another "first" admin.
     return res.status(403).json({ message: 'Bootstrap already completed.' });
   }
 
@@ -51,6 +57,7 @@ app.post('/api/bootstrap', async (req, res) => {
   const result = await getDb().collection('users').insertOne(newSuperAdmin);
   res.status(201).json(toClientShape({ ...newSuperAdmin, _id: result.insertedId }));
 });
+
 // --- Users ---
 
 app.get('/api/users', async (req, res) => {
@@ -86,6 +93,16 @@ app.delete('/api/users/:id', async (req, res) => {
   res.status(204).send();
 });
 
+app.put('/api/users/:id', async (req, res) => {
+  const updates = { ...req.body };
+  delete updates.id;
+  await getDb().collection('users').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: updates }
+  );
+  res.status(204).send();
+});
+
 // --- Groups ---
 
 app.get('/api/groups', async (req, res) => {
@@ -95,8 +112,29 @@ app.get('/api/groups', async (req, res) => {
 
 app.post('/api/groups', async (req, res) => {
   const result = await getDb().collection('groups').insertOne(req.body);
-  res.status(201).json(toClientShape({ ...req.body, _id: result.insertedId }));
+  const newGroup = toClientShape({ ...req.body, _id: result.insertedId });
+
+  // Every group needs somewhere to chat from the moment it exists,
+  // rather than requiring a separate manual step to add the first
+  // channel.
+  await getDb().collection('channels').insertOne({
+    name: 'general',
+    groupId: newGroup.id
+  });
+
+  res.status(201).json(newGroup);
 });
+
+app.put('/api/groups/:id', async (req, res) => {
+  const updates = { ...req.body };
+  delete updates.id;
+  await getDb().collection('groups').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: updates }
+  );
+  res.status(204).send();
+});
+
 // --- Join Requests ---
 
 app.get('/api/join-requests', async (req, res) => {
@@ -118,7 +156,6 @@ app.put('/api/join-requests/:id', async (req, res) => {
   );
 
   if (status === 'approved') {
-    // Add the requesting user to the group's member list.
     const request = await getDb().collection('joinRequests').findOne({ _id: new ObjectId(req.params.id) });
     await getDb().collection('users').updateOne(
       { _id: new ObjectId(request.userId) },
@@ -128,6 +165,7 @@ app.put('/api/join-requests/:id', async (req, res) => {
 
   res.status(204).send();
 });
+
 // --- Group Requests ---
 
 app.get('/api/group-requests', async (req, res) => {
@@ -149,15 +187,108 @@ app.put('/api/group-requests/:id', async (req, res) => {
   );
   res.status(204).send();
 });
+// --- Room Requests ---
+
+app.get('/api/room-requests', async (req, res) => {
+  const requests = await getDb().collection('roomRequests').find().toArray();
+  res.json(requests.map(toClientShape));
+});
+
+app.post('/api/room-requests', async (req, res) => {
+  const newRequest = { ...req.body, status: 'pending' };
+  const result = await getDb().collection('roomRequests').insertOne(newRequest);
+  res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
+});
+
+app.put('/api/room-requests/:id', async (req, res) => {
+  const { status, rejectionReason } = req.body;
+  await getDb().collection('roomRequests').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { status, rejectionReason } }
+  );
+
+  if (status === 'approved') {
+    // Approving a room request actually creates the real channel.
+    const request = await getDb().collection('roomRequests').findOne({ _id: new ObjectId(req.params.id) });
+    await getDb().collection('channels').insertOne({
+      name: request.roomName,
+      groupId: request.groupId
+    });
+  }
+
+  res.status(204).send();
+});
+// --- Ban Requests ---
+
+app.get('/api/ban-requests', async (req, res) => {
+  const requests = await getDb().collection('banRequests').find().toArray();
+  res.json(requests.map(toClientShape));
+});
+
+app.post('/api/ban-requests', async (req, res) => {
+  const newRequest = { ...req.body, status: 'pending' };
+  const result = await getDb().collection('banRequests').insertOne(newRequest);
+  res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
+});
+
+app.put('/api/ban-requests/:id', async (req, res) => {
+  const { status, rejectionReason } = req.body;
+  await getDb().collection('banRequests').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { status, rejectionReason } }
+  );
+
+  if (status === 'approved') {
+    const request = await getDb().collection('banRequests').findOne({ _id: new ObjectId(req.params.id) });
+    const targetUser = await getDb().collection('users').findOne({ _id: new ObjectId(request.targetUserId) });
+    const updatedGroupIds = (targetUser.groupIds || []).filter(id => id !== request.groupId);
+    const updatedBannedIds = [...(targetUser.bannedFromGroupIds || []), request.groupId];
+
+    await getDb().collection('users').updateOne(
+      { _id: new ObjectId(request.targetUserId) },
+      { $set: { groupIds: updatedGroupIds, bannedFromGroupIds: updatedBannedIds } }
+    );
+  }
+
+  res.status(204).send();
+});
+// --- Channels ---
+
+app.get('/api/channels', async (req, res) => {
+  const groupId = req.query.groupId;
+  const filter = groupId ? { groupId } : {};
+  const channels = await getDb().collection('channels').find(filter).toArray();
+  res.json(channels.map(toClientShape));
+});
+
+app.post('/api/channels', async (req, res) => {
+  const result = await getDb().collection('channels').insertOne(req.body);
+  res.status(201).json(toClientShape({ ...req.body, _id: result.insertedId }));
+});
+// --- Messages ---
+
+app.get('/api/messages', async (req, res) => {
+  const channelId = req.query.channelId;
+  if (!channelId) {
+    return res.json([]);
+  }
+  // Newest 5 first, then reverse so they display oldest-to-newest,
+  // the normal reading order for a chat log.
+  const messages = await getDb().collection('messages')
+    .find({ channelId })
+    .sort({ _id: -1 })
+    .limit(5)
+    .toArray();
+  res.json(messages.reverse().map(doc =>
+    toClientShape({ ...doc, timestamp: resolveTimestamp(doc) })
+  ));
+});
+
 // --- Sockets ---
 
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
-  // A "room" in Socket.io is just a named group of connected
-  // sockets -- joining a room lets us broadcast only to people
-  // currently viewing that specific channel, not everyone connected
-  // to the server.
   socket.on('joinChannel', ({ channelId, username }) => {
     socket.data.channelId = channelId;
     socket.data.username = username;
@@ -178,19 +309,25 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('sendMessage', async (message) => {
-    // Persist to MongoDB first, then broadcast -- so a message
-    // sent while someone else is offline is still there when they
-    // next load the channel, not just something that flew past.
-    const result = await getDb().collection('messages').insertOne(message);
-    const saved = { ...message, id: result.insertedId.toString() };
-    io.to(message.channelId).emit('newMessage', saved);
-  });
+ socket.on('sendMessage', async (message) => {
+  const result = await getDb().collection('messages').insertOne(message);
+  const saved = { ...message, id: result.insertedId.toString() };
+  io.to(message.channelId).emit('newMessage', saved);
 
-  // Fires automatically if the browser tab is closed or the
-  // connection drops -- not just on an explicit "leave" click. This
-  // stops a channel silently believing someone is still present
-  // after they've actually gone.
+  // Enforce the "only the last 5 messages are stored" rule: find
+  // every message in this channel, oldest first, and delete any
+  // beyond the 5 most recent.
+  const allForChannel = await getDb().collection('messages')
+    .find({ channelId: message.channelId })
+    .sort({ _id: 1 })
+    .toArray();
+
+  if (allForChannel.length > 5) {
+    const idsToDelete = allForChannel.slice(0, allForChannel.length - 5).map(m => m._id);
+    await getDb().collection('messages').deleteMany({ _id: { $in: idsToDelete } });
+  }
+});
+
   socket.on('disconnect', () => {
     if (socket.data.channelId && socket.data.username) {
       socket.to(socket.data.channelId).emit('userLeft', {
