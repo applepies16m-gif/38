@@ -15,7 +15,9 @@ import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of
   styleUrl: './register.component.css'
 })
 export class RegisterComponent {
-  displayName = '';
+  firstName = '';
+  lastName = '';
+  displayName = ''; // optional; the server builds it from the names if left empty
   username = '';
   email = '';
   dateOfBirth = '';
@@ -35,8 +37,13 @@ export class RegisterComponent {
   }
 
   onRegister(): void {
-    if (!this.displayName || !this.username || !this.email || !this.dateOfBirth || !this.password) {
-      this.errorMsg = 'Please fill in every field.';
+    if (!this.firstName.trim() || !this.lastName.trim() || !this.username.trim() ||
+        !this.email.trim() || !this.dateOfBirth || !this.password) {
+      this.errorMsg = 'Please fill in every field (display name is optional).';
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.email.trim())) {
+      this.errorMsg = 'Enter a valid email address.';
       return;
     }
     // The server applies the same rule; checking here just gives
@@ -57,6 +64,8 @@ export class RegisterComponent {
     const newUser: Partial<User> = {
       username: this.username,
       password: this.password,
+      firstName: this.firstName,
+      lastName: this.lastName,
       displayName: this.displayName,
       email: this.email,
       dateOfBirth: this.dateOfBirth,

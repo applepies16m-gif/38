@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { UserService } from '../../services/user.service';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
+import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of-birth';
 
 @Component({
   selector: 'app-bootstrap',
@@ -14,9 +15,12 @@ import { User } from '../../models/user.model';
   styleUrl: './bootstrap.component.css'
 })
 export class BootstrapComponent {
-  displayName = '';
+  firstName = '';
+  lastName = '';
+  displayName = ''; // optional; the server builds it from the names if left empty
   username = '';
   email = '';
+  dateOfBirth = '';
   password = '';
   confirmPassword = '';
   errorMsg = '';
@@ -33,8 +37,17 @@ export class BootstrapComponent {
   }
 
   onBootstrap(): void {
-    if (!this.displayName || !this.username || !this.email || !this.password) {
-      this.errorMsg = 'Please fill in every field.';
+    if (!this.firstName.trim() || !this.lastName.trim() || !this.username.trim() ||
+        !this.email.trim() || !this.dateOfBirth || !this.password) {
+      this.errorMsg = 'Please fill in every field (display name is optional).';
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.email.trim())) {
+      this.errorMsg = 'Enter a valid email address.';
+      return;
+    }
+    if (calculateAge(this.dateOfBirth) === null) {
+      this.errorMsg = INVALID_DATE_OF_BIRTH_MESSAGE;
       return;
     }
     if (!this.passwordIsValid) {
@@ -49,8 +62,11 @@ export class BootstrapComponent {
     const newSuperAdmin: Partial<User> = {
       username: this.username,
       password: this.password,
+      firstName: this.firstName,
+      lastName: this.lastName,
       displayName: this.displayName,
       email: this.email,
+      dateOfBirth: this.dateOfBirth,
       role: 'super_admin',
       online: true,
       groupIds: [],

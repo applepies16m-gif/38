@@ -19,7 +19,17 @@
         <form (ngSubmit)="onBootstrap()">
 
           <div class="field-row">
-            <label>Display Name</label>
+            <label>First Name</label>
+            <input type="text" [(ngModel)]="firstName" name="firstName" maxlength="50" />
+          </div>
+
+          <div class="field-row">
+            <label>Last Name</label>
+            <input type="text" [(ngModel)]="lastName" name="lastName" maxlength="50" />
+          </div>
+
+          <div class="field-row">
+            <label>Display Name (optional)</label>
             <input type="text" [(ngModel)]="displayName" name="displayName" />
           </div>
 
@@ -31,6 +41,11 @@
           <div class="field-row">
             <label>Email</label>
             <input type="text" [(ngModel)]="email" name="email" />
+          </div>
+
+          <div class="field-row">
+            <label>Date of Birth</label>
+            <input type="date" [(ngModel)]="dateOfBirth" name="dateOfBirth" />
           </div>
 
           <div class="field-row">

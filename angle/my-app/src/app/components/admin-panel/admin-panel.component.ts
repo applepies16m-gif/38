@@ -23,6 +23,9 @@ export class AdminPanelComponent implements OnInit {
   groupRequests: GroupCreationRequest[] = [];
 
   newUsername = '';
+  newFirstName = '';
+  newLastName = '';
+  newEmail = '';
   newDisplayName = '';
   newPassword = '';
   newDateOfBirth = ''; // optional for accounts an admin creates
@@ -66,8 +69,9 @@ export class AdminPanelComponent implements OnInit {
   // Creates a user account from the Admin Panel form. The date of
   // birth is optional here, but is checked if one is entered.
   requestNewUser(): void {
-    if (!this.newUsername.trim() || !this.newPassword.trim()) {
-      alert('A username and a password are required.');
+    if (!this.newUsername.trim() || !this.newFirstName.trim() || !this.newLastName.trim() ||
+        !this.newEmail.trim() || !this.newPassword.trim()) {
+      alert('Username, first name, last name, email and password are all required.');
       return;
     }
     if (this.newPassword.length < 8 || !/[A-Z]/.test(this.newPassword)) {
@@ -81,8 +85,11 @@ export class AdminPanelComponent implements OnInit {
     const newUser: Partial<User> = {
       username: this.newUsername,
       password: this.newPassword,
-      displayName: this.newDisplayName || this.newUsername,
-      email: this.newUsername + '@student.griffith.edu.au',
+      firstName: this.newFirstName,
+      lastName: this.newLastName,
+      // Left empty, the server builds it from the first and last name.
+      displayName: this.newDisplayName,
+      email: this.newEmail,
       role: 'user',
       online: false,
       groupIds: [],
@@ -96,6 +103,9 @@ export class AdminPanelComponent implements OnInit {
       next: (createdUser) => {
         this.users.push(createdUser);
         this.newUsername = '';
+        this.newFirstName = '';
+        this.newLastName = '';
+        this.newEmail = '';
         this.newDisplayName = '';
         this.newPassword = '';
         this.newDateOfBirth = '';
@@ -118,10 +128,15 @@ export class AdminPanelComponent implements OnInit {
       adminIds: [],
       channelIds: []
     };
-    this.groupService.createGroup(newGroup).subscribe(createdGroup => {
-      this.groups.push(createdGroup);
-      this.cdr.markForCheck();
-      this.newGroupName = '';
+    this.groupService.createGroup(newGroup).subscribe({
+      next: (createdGroup) => {
+        this.groups.push(createdGroup);
+        this.newGroupName = '';
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The group could not be created.');
+      }
     });
   }
 
@@ -132,10 +147,22 @@ export class AdminPanelComponent implements OnInit {
       .join(', ') || '--';
   }
 
+  // Deletes a user's account. The server refuses if they are the
+  // only admin of a group (or the only Super Admin) and says who
+  // needs appointing first; that message is shown as it is.
   removeUser(user: User): void {
-    this.userService.deleteUser(user.id).subscribe(() => {
-      this.users = this.users.filter(u => u.id !== user.id);
-      this.cdr.markForCheck();
+    const confirmed = confirm(`Permanently delete the account of ${user.displayName}?`);
+    if (!confirmed) {
+      return;
+    }
+    this.userService.deleteUser(user.id).subscribe({
+      next: () => {
+        this.users = this.users.filter(u => u.id !== user.id);
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The user could not be removed.');
+      }
     });
   }
 
@@ -186,12 +213,33 @@ rejectGroupRequest(req: GroupCreationRequest): void {
   });
 }
 
+  // Bans a user from the whole system. The ban is saved on their
+  // account, so the server refuses their next login and their chat
+  // messages. They stay in the list, marked banned, so the ban can
+  // be seen and undone.
   banFromSystem(user: User): void {
-    const confirmed = confirm(`Permanently ban ${user.displayName} from the entire system?`);
+    const confirmed = confirm(`Ban ${user.displayName} from the entire system?`);
     if (!confirmed) {
       return;
     }
-    user.isSystemBanned = true;
-    this.users = this.users.filter(u => u.id !== user.id);
+    this.setSystemBan(user, true);
+  }
+
+  // Lifts a system ban so the user can log in again.
+  unbanFromSystem(user: User): void {
+    this.setSystemBan(user, false);
+  }
+
+  // Saves the ban flag on the server, then updates the row.
+  private setSystemBan(user: User, isBanned: boolean): void {
+    this.userService.updateUser(user.id, { isSystemBanned: isBanned }).subscribe({
+      next: () => {
+        user.isSystemBanned = isBanned;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The ban could not be changed.');
+      }
+    });
   }
 }

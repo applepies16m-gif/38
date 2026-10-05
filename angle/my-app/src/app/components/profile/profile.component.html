@@ -72,5 +72,17 @@
       </div>
     </div>
 
+    <div class="panel">
+      <div class="panel-header">Delete My Account</div>
+      <div class="panel-body">
+        <p class="helper-text">
+          This permanently removes your account. If you are the only admin of a
+          group, another admin has to be appointed for it first.
+        </p>
+        <div *ngIf="deleteError" class="password-msg">{{ deleteError }}</div>
+        <button class="btn" (click)="deleteMyAccount()">Delete My Account</button>
+      </div>
+    </div>
+
   </div>
 </div>

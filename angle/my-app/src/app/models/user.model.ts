@@ -2,6 +2,8 @@ export interface User {
   id: string;
   username: string;
   password?: string;
+  firstName?: string;      // collected at register and bootstrap; older accounts have none
+  lastName?: string;
   displayName: string;
   email: string;
   dateOfBirth?: string;    // ISO date string, e.g. "1971-01-01"

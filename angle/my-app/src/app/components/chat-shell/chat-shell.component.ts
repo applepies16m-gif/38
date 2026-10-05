@@ -149,6 +149,13 @@ export class ChatShellComponent implements OnInit, OnDestroy {
         this.logout();
         return;
       }
+      // Banned from the whole system while logged in: end the
+      // session and let the login page explain why.
+      if (freshUser.isSystemBanned) {
+        this.authService.logout();
+        this.router.navigate(['/login'], { queryParams: { banned: 'yes' } });
+        return;
+      }
       this.authService.login(freshUser);
       this.currentUsername = freshUser.displayName || freshUser.username;
       this.currentRole = freshUser.role;

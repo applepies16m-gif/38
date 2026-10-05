@@ -270,8 +270,15 @@ rejectBanRequest(req: BanRequest): void {
       title: group.title,
       description: group.description,
       ageLimit: group.ageLimit
-    }).subscribe(() => {
-      alert('Group settings saved.');
+    }).subscribe({
+      next: () => {
+        alert('Group settings saved.');
+      },
+      // The server checks the title, description and age limit and
+      // says which one is wrong.
+      error: (err) => {
+        alert(err.error?.message || 'The group settings could not be saved.');
+      }
     });
   }
   createChannel(): void {
@@ -282,9 +289,15 @@ rejectBanRequest(req: BanRequest): void {
   this.channelService.createChannel({
     name: this.newChannelName,
     groupId: group.id
-  }).subscribe(() => {
-    this.newChannelName = '';
-    alert('Channel created.');
+  }).subscribe({
+    next: () => {
+      this.newChannelName = '';
+      alert('Channel created.');
+      this.cdr.markForCheck();
+    },
+    error: (err) => {
+      alert(err.error?.message || 'The channel could not be created.');
+    }
   });
 }
 }

@@ -103,12 +103,24 @@ function resolveTimestamp(doc) {
 
 // Fields a client may send when creating a user. The role, group
 // membership and ban flags are always set by the server instead.
-const USER_CREATE_FIELDS = ['username', 'password', 'displayName', 'email', 'dateOfBirth'];
+const USER_CREATE_FIELDS = ['username', 'password', 'firstName', 'lastName', 'displayName', 'email', 'dateOfBirth'];
 
 // Fields a client may change on an existing user. The admin pages
 // change role and group membership through this same route, so
 // those have to stay on the list.
-const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth', 'profilePicUrl'];
+const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth', 'profilePicUrl', 'isSystemBanned'];
+
+// Fields a client may send when creating or changing a group.
+const GROUP_FIELDS = ['title', 'description', 'ageLimit', 'adminIds', 'channelIds', 'theme'];
+
+// Limits and messages shared by the validation helpers below.
+const USER_ROLES = ['super_admin', 'group_admin', 'user'];
+const MAX_NAME_LENGTH = 50;
+const MAX_GROUP_TITLE_LENGTH = 30;
+const MAX_GROUP_DESCRIPTION_LENGTH = 250;
+const MAX_CHANNEL_NAME_LENGTH = 30;
+const PASSWORD_RULE_MESSAGE = 'Password must be at least 8 characters and include an uppercase letter.';
+const SYSTEM_BANNED_MESSAGE = 'This account has been banned from the system.';
 
 // Shown when a date of birth fails calculateAge's rules.
 const INVALID_DATE_OF_BIRTH_MESSAGE = 'Date of birth must be a real date, not in the future and not more than 120 years ago.';
@@ -268,6 +280,205 @@ async function checkUsername(username, excludeUserId) {
   return null;
 }
 
+// True for text that still has something in it once spaces are
+// trimmed off. Used for every "this field is required" check.
+function isFilledText(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+// The password rule: 8 or more characters with an uppercase letter.
+function isValidPassword(password) {
+  return typeof password === 'string' && password.length >= 8 && /[A-Z]/.test(password);
+}
+
+// A simple shape check for an email: something@something.something
+// with no spaces. It can't prove the address exists.
+function isValidEmail(email) {
+  return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+// True for a list in which every item is text (a list of ids).
+function isListOfText(value) {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
+// Checks and tidies the details for a new account (register, the
+// Admin Panel form and bootstrap all come through here). Returns
+// { fields } ready to store, or { status, message } for the first
+// problem found.
+async function prepareNewUser(body) {
+  const bad = message => ({ status: 400, message });
+  const fields = pickFields(body, USER_CREATE_FIELDS);
+
+  fields.username = normaliseUsername(fields.username);
+  const usernameProblem = await checkUsername(fields.username);
+  if (usernameProblem) {
+    return usernameProblem;
+  }
+
+  for (const [name, label] of [['firstName', 'First name'], ['lastName', 'Last name']]) {
+    if (!isFilledText(fields[name])) {
+      return bad(`${label} is required.`);
+    }
+    fields[name] = fields[name].trim();
+    if (fields[name].length > MAX_NAME_LENGTH) {
+      return bad(`${label} must be ${MAX_NAME_LENGTH} characters or fewer.`);
+    }
+  }
+
+  // The display name is what other users see. If none is given it
+  // is made from the first and last name.
+  fields.displayName = isFilledText(fields.displayName)
+    ? fields.displayName.trim()
+    : `${fields.firstName} ${fields.lastName}`;
+  if (fields.displayName.length > MAX_NAME_LENGTH * 2 + 1) {
+    return bad('Display name is too long.');
+  }
+
+  if (!isValidEmail(fields.email)) {
+    return bad('Enter a valid email address.');
+  }
+  fields.email = fields.email.trim();
+
+  if (!isValidPassword(fields.password)) {
+    return bad(PASSWORD_RULE_MESSAGE);
+  }
+
+  // A date of birth is optional here (accounts made by an admin may
+  // not have one), so it is only checked when one was sent. An
+  // empty value counts as not sent and is not stored.
+  if (!fields.dateOfBirth) {
+    delete fields.dateOfBirth;
+  } else if (calculateAge(fields.dateOfBirth) === null) {
+    return bad(INVALID_DATE_OF_BIRTH_MESSAGE);
+  }
+
+  return { fields };
+}
+
+// Checks the changes to an existing account, tidying values in
+// place. existing is the stored user. Returns null if every change
+// is acceptable, or { status, message } for the first that isn't.
+async function checkUserUpdates(updates, existing) {
+  const bad = message => ({ status: 400, message });
+
+  // A changed username is stored in the same lower-case form login
+  // looks it up in, and must not belong to another account.
+  if (updates.username !== undefined) {
+    updates.username = normaliseUsername(updates.username);
+    const usernameProblem = await checkUsername(updates.username, existing._id.toString());
+    if (usernameProblem) {
+      return usernameProblem;
+    }
+  }
+
+  if (updates.displayName !== undefined) {
+    if (!isFilledText(updates.displayName)) {
+      return bad('Display name is required.');
+    }
+    updates.displayName = updates.displayName.trim();
+    if (updates.displayName.length > MAX_NAME_LENGTH * 2 + 1) {
+      return bad('Display name is too long.');
+    }
+  }
+
+  if (updates.password !== undefined && !isValidPassword(updates.password)) {
+    return bad(PASSWORD_RULE_MESSAGE);
+  }
+
+  if (updates.role !== undefined && !USER_ROLES.includes(updates.role)) {
+    return bad('Role must be super_admin, group_admin or user.');
+  }
+
+  for (const listName of ['groupIds', 'bannedFromGroupIds']) {
+    if (updates[listName] !== undefined && !isListOfText(updates[listName])) {
+      return bad(`${listName} must be a list of group ids.`);
+    }
+  }
+
+  // A Super Admin can't be banned from the system, so the people
+  // who can undo a ban can never all be locked out.
+  if (updates.isSystemBanned !== undefined) {
+    if (typeof updates.isSystemBanned !== 'boolean') {
+      return bad('isSystemBanned must be true or false.');
+    }
+    if (updates.isSystemBanned && existing.role === 'super_admin') {
+      return bad('A Super Admin cannot be banned from the system.');
+    }
+  }
+
+  // A date of birth can be set once. It is accepted only if the
+  // new value is valid and the account doesn't already hold a
+  // valid one, so a user can't change their age to get past a
+  // group's age limit.
+  if (updates.dateOfBirth !== undefined) {
+    if (calculateAge(updates.dateOfBirth) === null) {
+      return bad(INVALID_DATE_OF_BIRTH_MESSAGE);
+    }
+    if (calculateAge(existing.dateOfBirth) !== null) {
+      return bad('Date of birth has already been set and cannot be changed.');
+    }
+  }
+
+  // A profile picture must be a path this server handed out from
+  // /api/upload, never an outside address.
+  if (updates.profilePicUrl !== undefined && !isUploadedImageUrl(updates.profilePicUrl)) {
+    return bad('A profile picture must be an image uploaded through the app.');
+  }
+
+  return null;
+}
+
+// Checks the fields of a group, tidying values in place. isNew is
+// true when creating (a title is then required); when updating,
+// only the fields that were sent are checked. Returns null if all
+// is well, or the message for the first problem.
+function checkGroupFields(fields, isNew) {
+  if (isNew || fields.title !== undefined) {
+    if (!isFilledText(fields.title)) {
+      return 'A group title is required.';
+    }
+    fields.title = fields.title.trim();
+    if (fields.title.length > MAX_GROUP_TITLE_LENGTH) {
+      return `Group title must be ${MAX_GROUP_TITLE_LENGTH} characters or fewer.`;
+    }
+  }
+
+  if (fields.description !== undefined) {
+    if (typeof fields.description !== 'string') {
+      return 'Group description must be text.';
+    }
+    fields.description = fields.description.trim();
+    if (fields.description.length > MAX_GROUP_DESCRIPTION_LENGTH) {
+      return `Group description must be ${MAX_GROUP_DESCRIPTION_LENGTH} characters or fewer.`;
+    }
+  }
+
+  // The age limit must be a whole number. 0 means no limit. A form
+  // may send it as text ("15"), so it is converted to a number.
+  if (fields.ageLimit !== undefined) {
+    const isNumberLike = typeof fields.ageLimit === 'number' ||
+      (typeof fields.ageLimit === 'string' && fields.ageLimit.trim() !== '');
+    const ageLimit = Number(fields.ageLimit);
+    if (!isNumberLike || !Number.isInteger(ageLimit) || ageLimit < 0 || ageLimit > MAX_AGE_YEARS) {
+      return `Age limit must be a whole number from 0 to ${MAX_AGE_YEARS} (0 means no limit).`;
+    }
+    fields.ageLimit = ageLimit;
+  }
+
+  for (const listName of ['adminIds', 'channelIds']) {
+    if (fields[listName] !== undefined && !isListOfText(fields[listName])) {
+      return `${listName} must be a list of ids.`;
+    }
+  }
+  // An existing group can't have its last admin taken away.
+  if (!isNew && fields.adminIds !== undefined && fields.adminIds.length === 0) {
+    return 'A group must always have at least one admin.';
+  }
+
+  return null;
+}
+
 // --- Bootstrap ---
 
 app.get('/api/bootstrap-status', async (req, res) => {
@@ -281,16 +492,20 @@ app.post('/api/bootstrap', async (req, res) => {
     return res.status(403).json({ message: 'Bootstrap already completed.' });
   }
 
-  const username = normaliseUsername((req.body || {}).username);
-  const usernameProblem = await checkUsername(username);
-  if (usernameProblem) {
-    return res.status(usernameProblem.status).json({ message: usernameProblem.message });
+  // The first account goes through the same checks as any other
+  // new account; only its role differs.
+  const prepared = await prepareNewUser(req.body || {});
+  if (prepared.message) {
+    return res.status(prepared.status).json({ message: prepared.message });
   }
 
   const newSuperAdmin = {
-    ...req.body,
-    username,
-    role: 'super_admin'
+    ...prepared.fields,
+    role: 'super_admin',
+    online: false,
+    groupIds: [],
+    bannedFromGroupIds: [],
+    isSystemBanned: false
   };
   const result = await getDb().collection('users').insertOne(newSuperAdmin);
   res.status(201).json(toClientShape({ ...newSuperAdmin, _id: result.insertedId }));
@@ -312,35 +527,26 @@ app.post('/api/login', async (req, res) => {
   if (!user || user.password !== password) {
     return res.status(401).json({ message: 'Invalid username or password.' });
   }
+  // Checked only after the password, so the ban is not revealed to
+  // someone who doesn't know the account's password.
+  if (user.isSystemBanned) {
+    return res.status(403).json({ message: SYSTEM_BANNED_MESSAGE });
+  }
 
   const { password: _pw, ...safeUser } = toClientShape(user);
   res.json(safeUser);
 });
 
 app.post('/api/users', async (req, res) => {
-  const body = req.body || {};
-  const fields = pickFields(body, USER_CREATE_FIELDS);
-
-  // A date of birth is optional (accounts made by an admin may not
-  // have one), so it is only checked when one was sent. An empty
-  // value counts as not sent and is not stored.
-  if (!fields.dateOfBirth) {
-    delete fields.dateOfBirth;
-  } else if (calculateAge(fields.dateOfBirth) === null) {
-    return res.status(400).json({ message: INVALID_DATE_OF_BIRTH_MESSAGE });
-  }
-
-  const username = normaliseUsername(body.username);
-  const usernameProblem = await checkUsername(username);
-  if (usernameProblem) {
-    return res.status(usernameProblem.status).json({ message: usernameProblem.message });
+  const prepared = await prepareNewUser(req.body || {});
+  if (prepared.message) {
+    return res.status(prepared.status).json({ message: prepared.message });
   }
 
   // Only the whitelisted fields are kept. Every new account starts
   // as a plain user in no groups, whatever the client sent.
   const newUser = {
-    ...fields,
-    username,
+    ...prepared.fields,
     role: 'user',
     online: false,
     groupIds: [],
@@ -351,8 +557,43 @@ app.post('/api/users', async (req, res) => {
   res.status(201).json(toClientShape({ ...newUser, _id: result.insertedId }));
 });
 
+// Deletes an account. Used by the Admin Panel's "remove" and by
+// "delete my account" on the Profile page. A group must always
+// keep at least one admin, so the only admin of a group can't be
+// deleted until someone else is appointed.
 app.delete('/api/users/:id', async (req, res) => {
-  await getDb().collection('users').deleteOne({ _id: new ObjectId(req.params.id) });
+  const users = getDb().collection('users');
+  const user = ObjectId.isValid(req.params.id)
+    ? await users.findOne({ _id: new ObjectId(req.params.id) })
+    : null;
+  if (!user) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+  const userId = user._id.toString();
+  const name = user.displayName || user.username;
+
+  // Likewise the system must keep at least one Super Admin.
+  if (user.role === 'super_admin' && (await users.countDocuments({ role: 'super_admin' })) <= 1) {
+    return res.status(409).json({ message: 'The only Super Admin account cannot be deleted.' });
+  }
+
+  const adminOf = await getDb().collection('groups').find({ adminIds: userId }).toArray();
+  const soleAdminOf = adminOf.filter(g => g.adminIds.length === 1);
+  if (soleAdminOf.length > 0) {
+    const titles = soleAdminOf.map(g => `"${g.title}"`).join(', ');
+    return res.status(409).json({
+      message: `${name} is the only admin of ${titles}. Appoint another admin for ${soleAdminOf.length === 1 ? 'that group' : 'each of those groups'} first.`
+    });
+  }
+
+  // Tidy up what pointed at this account: their place in any
+  // group's admin list, their unanswered join requests, and their
+  // profile picture file. Messages they sent are left in place.
+  await getDb().collection('groups').updateMany({ adminIds: userId }, { $pull: { adminIds: userId } });
+  await getDb().collection('joinRequests').deleteMany({ userId, status: 'pending' });
+  deleteUploadedImage(user.profilePicUrl);
+
+  await users.deleteOne({ _id: user._id });
   res.status(204).send();
 });
 
@@ -363,59 +604,26 @@ app.put('/api/users/:id', async (req, res) => {
     return res.status(400).json({ message: 'No valid fields to update.' });
   }
 
-  // A changed username is stored in the same lower-case form login
-  // looks it up in, and must not belong to another account.
-  if (updates.username !== undefined) {
-    updates.username = normaliseUsername(updates.username);
-    const usernameProblem = await checkUsername(updates.username, req.params.id);
-    if (usernameProblem) {
-      return res.status(usernameProblem.status).json({ message: usernameProblem.message });
-    }
+  const existing = ObjectId.isValid(req.params.id)
+    ? await getDb().collection('users').findOne({ _id: new ObjectId(req.params.id) })
+    : null;
+  if (!existing) {
+    return res.status(404).json({ message: 'User not found.' });
   }
 
-  // A date of birth can be set once. It is accepted only if the
-  // new value is valid and the account doesn't already hold a
-  // valid one, so a user can't change their age to get past a
-  // group's age limit.
-  if (updates.dateOfBirth !== undefined) {
-    if (calculateAge(updates.dateOfBirth) === null) {
-      return res.status(400).json({ message: INVALID_DATE_OF_BIRTH_MESSAGE });
-    }
-    const existing = ObjectId.isValid(req.params.id)
-      ? await getDb().collection('users').findOne({ _id: new ObjectId(req.params.id) })
-      : null;
-    if (!existing) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
-    if (calculateAge(existing.dateOfBirth) !== null) {
-      return res.status(400).json({ message: 'Date of birth has already been set and cannot be changed.' });
-    }
+  // Every rule for changing an account is in checkUserUpdates. If
+  // any change is refused, nothing in the request is saved.
+  const problem = await checkUserUpdates(updates, existing);
+  if (problem) {
+    return res.status(problem.status).json({ message: problem.message });
   }
 
-  // A profile picture must be a path this server handed out from
-  // /api/upload, never an outside address. The picture it replaces
-  // is remembered so its file can be deleted once the new one is
-  // saved.
-  let oldProfilePicUrl = null;
-  if (updates.profilePicUrl !== undefined) {
-    if (!isUploadedImageUrl(updates.profilePicUrl)) {
-      return res.status(400).json({ message: 'A profile picture must be an image uploaded through the app.' });
-    }
-    const existing = ObjectId.isValid(req.params.id)
-      ? await getDb().collection('users').findOne({ _id: new ObjectId(req.params.id) })
-      : null;
-    if (!existing) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
-    oldProfilePicUrl = existing.profilePicUrl;
-  }
+  await getDb().collection('users').updateOne({ _id: existing._id }, { $set: updates });
 
-  await getDb().collection('users').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: updates }
-  );
-  if (oldProfilePicUrl && oldProfilePicUrl !== updates.profilePicUrl) {
-    deleteUploadedImage(oldProfilePicUrl);
+  // A replaced profile picture would never be shown again, so its
+  // file is deleted once the new one is saved.
+  if (updates.profilePicUrl && existing.profilePicUrl && existing.profilePicUrl !== updates.profilePicUrl) {
+    deleteUploadedImage(existing.profilePicUrl);
   }
   res.status(204).send();
 });
@@ -428,8 +636,22 @@ app.get('/api/groups', async (req, res) => {
 });
 
 app.post('/api/groups', async (req, res) => {
-  const result = await getDb().collection('groups').insertOne(req.body);
-  const newGroup = toClientShape({ ...req.body, _id: result.insertedId });
+  // Only the whitelisted fields are kept, with defaults for any
+  // that were left out, and all of them are checked before saving.
+  const fields = {
+    description: '',
+    ageLimit: 0,
+    adminIds: [],
+    channelIds: [],
+    ...pickFields(req.body || {}, GROUP_FIELDS)
+  };
+  const problem = checkGroupFields(fields, true);
+  if (problem) {
+    return res.status(400).json({ message: problem });
+  }
+
+  const result = await getDb().collection('groups').insertOne(fields);
+  const newGroup = toClientShape({ ...fields, _id: result.insertedId });
 
   // Every group needs somewhere to chat from the moment it exists,
   // rather than requiring a separate manual step to add the first
@@ -443,12 +665,25 @@ app.post('/api/groups', async (req, res) => {
 });
 
 app.put('/api/groups/:id', async (req, res) => {
-  const updates = { ...req.body };
-  delete updates.id;
-  await getDb().collection('groups').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: updates }
-  );
+  const updates = pickFields(req.body || {}, GROUP_FIELDS);
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ message: 'No valid fields to update.' });
+  }
+  const group = ObjectId.isValid(req.params.id)
+    ? await getDb().collection('groups').findOne({ _id: new ObjectId(req.params.id) })
+    : null;
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found.' });
+  }
+
+  // Only the fields that were sent are checked, with the same
+  // rules as when a group is created.
+  const problem = checkGroupFields(updates, false);
+  if (problem) {
+    return res.status(400).json({ message: problem });
+  }
+
+  await getDb().collection('groups').updateOne({ _id: group._id }, { $set: updates });
   res.status(204).send();
 });
 
@@ -536,7 +771,30 @@ app.get('/api/group-requests', async (req, res) => {
 });
 
 app.post('/api/group-requests', async (req, res) => {
-  const newRequest = { ...req.body, status: 'pending' };
+  const body = req.body || {};
+  // A proposed group follows the same title and description rules
+  // as a real one, so an approved request can't create a bad group.
+  const proposed = { title: body.proposedTitle, description: body.proposedDescription };
+  const problem = checkGroupFields(proposed, true);
+  if (problem) {
+    return res.status(400).json({ message: problem });
+  }
+  if (!isFilledText(proposed.description)) {
+    return res.status(400).json({ message: 'A group description is required.' });
+  }
+  const requester = typeof body.requestedBy === 'string' && ObjectId.isValid(body.requestedBy)
+    ? await getDb().collection('users').findOne({ _id: new ObjectId(body.requestedBy) })
+    : null;
+  if (!requester) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+
+  const newRequest = {
+    requestedBy: body.requestedBy,
+    proposedTitle: proposed.title,
+    proposedDescription: proposed.description,
+    status: 'pending'
+  };
   const result = await getDb().collection('groupRequests').insertOne(newRequest);
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
 });
@@ -624,8 +882,25 @@ app.get('/api/channels', async (req, res) => {
 });
 
 app.post('/api/channels', async (req, res) => {
-  const result = await getDb().collection('channels').insertOne(req.body);
-  res.status(201).json(toClientShape({ ...req.body, _id: result.insertedId }));
+  const body = req.body || {};
+  if (!isFilledText(body.name)) {
+    return res.status(400).json({ message: 'A channel name is required.' });
+  }
+  const name = body.name.trim();
+  if (name.length > MAX_CHANNEL_NAME_LENGTH) {
+    return res.status(400).json({ message: `Channel name must be ${MAX_CHANNEL_NAME_LENGTH} characters or fewer.` });
+  }
+  // A channel has to belong to a group that exists.
+  const group = typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
+    ? await getDb().collection('groups').findOne({ _id: new ObjectId(body.groupId) })
+    : null;
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found.' });
+  }
+
+  const newChannel = { name, groupId: body.groupId };
+  const result = await getDb().collection('channels').insertOne(newChannel);
+  res.status(201).json(toClientShape({ ...newChannel, _id: result.insertedId }));
 });
 // --- Messages ---
 

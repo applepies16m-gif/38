@@ -23,6 +23,7 @@
         <label>Description ({{ descriptionCharsLeft }} characters left)</label>
         <textarea [(ngModel)]="proposedDescription" maxlength="250" rows="3" placeholder="What's this group about?"></textarea>
 
+        <div *ngIf="errorMsg" class="reason-text">{{ errorMsg }}</div>
         <div *ngIf="submitted" class="success-text">Request submitted — you'll be notified once it's reviewed.</div>
 
         <button class="btn btn-primary" (click)="submitRequest()">Submit Request</button>

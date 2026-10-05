@@ -36,6 +36,7 @@ export class ProfileComponent implements OnInit {
 
   saved = false;
   profileError = '';
+  deleteError = '';
 
 constructor(
   private router: Router,
@@ -85,6 +86,13 @@ ngOnInit(): void {
         // The account no longer exists, so end the session.
         this.authService.logout();
         this.router.navigate(['/login']);
+        return;
+      }
+      // Banned from the whole system while logged in: end the
+      // session and let the login page explain why.
+      if (freshUser.isSystemBanned) {
+        this.authService.logout();
+        this.router.navigate(['/login'], { queryParams: { banned: 'yes' } });
         return;
       }
       this.authService.login(freshUser);
@@ -190,16 +198,51 @@ ngOnInit(): void {
   // separate "verify password" endpoint.
   this.userService.login(currentUser.username, this.passwordCurrent).subscribe({
     next: () => {
-      this.userService.updateUser(currentUser.id, { password: this.passwordNew }).subscribe(() => {
-        this.passwordMsg = 'Password updated.';
-        this.passwordCurrent = '';
-        this.passwordNew = '';
-        this.passwordConfirm = '';
+      this.userService.updateUser(currentUser.id, { password: this.passwordNew }).subscribe({
+        next: () => {
+          this.passwordMsg = 'Password updated.';
+          this.passwordCurrent = '';
+          this.passwordNew = '';
+          this.passwordConfirm = '';
+          this.cdr.markForCheck();
+        },
+        // The server applies the password rule too.
+        error: (err) => {
+          this.passwordMsg = err.error?.message || 'The password could not be updated.';
+          this.cdr.markForCheck();
+        }
       });
     },
     error: () => {
       this.passwordMsg = 'Current password is incorrect.';
+      this.cdr.markForCheck();
     }
   });
 }
+
+  // Permanently deletes this user's own account, then logs out.
+  // The server refuses if they are the only admin of a group and
+  // says another admin must be appointed first; that message is
+  // shown as it is.
+  deleteMyAccount(): void {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser) {
+      return;
+    }
+    const confirmed = confirm('Permanently delete your account? This cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+    this.deleteError = '';
+    this.userService.deleteUser(currentUser.id).subscribe({
+      next: () => {
+        this.authService.logout();
+        this.router.navigate(['/login']);
+      },
+      error: (err) => {
+        this.deleteError = err.error?.message || 'Your account could not be deleted.';
+        this.cdr.markForCheck();
+      }
+    });
+  }
 }

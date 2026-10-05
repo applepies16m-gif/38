@@ -12,8 +12,19 @@
         <form (ngSubmit)="onRegister()">
 
           <div class="field-row">
-            <label>Display Name</label>
+            <label>First Name</label>
+            <input type="text" [(ngModel)]="firstName" name="firstName" maxlength="50" />
+          </div>
+
+          <div class="field-row">
+            <label>Last Name</label>
+            <input type="text" [(ngModel)]="lastName" name="lastName" maxlength="50" />
+          </div>
+
+          <div class="field-row">
+            <label>Display Name (optional)</label>
             <input type="text" [(ngModel)]="displayName" name="displayName" />
+            <span class="hint-inline">shown to other users; left empty, your first and last name are used</span>
           </div>
 
           <div class="field-row">

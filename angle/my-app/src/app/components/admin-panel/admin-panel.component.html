@@ -36,10 +36,15 @@
                 <span class="badge" [ngClass]="u.online ? 'badge-online' : 'badge-offline'">
                   {{ u.online ? 'online' : 'offline' }}
                 </span>
+                <span class="badge badge-admin" *ngIf="u.isSystemBanned">banned</span>
               </td>
               <td>
-                <a (click)="removeUser(u)">remove</a> &middot;
-                <a (click)="banFromSystem(u)">ban from system</a>
+                <a (click)="removeUser(u)">remove</a>
+                <ng-container *ngIf="u.role !== 'super_admin'">
+                  &middot;
+                  <a *ngIf="!u.isSystemBanned" (click)="banFromSystem(u)">ban from system</a>
+                  <a *ngIf="u.isSystemBanned" (click)="unbanFromSystem(u)">unban</a>
+                </ng-container>
               </td>
             </tr>
           </tbody>
@@ -51,6 +56,9 @@
       <div class="panel-header">Request New User</div>
       <div class="panel-body form-row">
         <input type="text" placeholder="Username" [(ngModel)]="newUsername" />
+        <input type="text" placeholder="First name" [(ngModel)]="newFirstName" />
+        <input type="text" placeholder="Last name" [(ngModel)]="newLastName" />
+        <input type="text" placeholder="Email" [(ngModel)]="newEmail" />
         <input type="text" placeholder="Display name (optional)" [(ngModel)]="newDisplayName" />
         <input type="password" placeholder="Password (8+ characters, 1 uppercase)" [(ngModel)]="newPassword" />
         <label>

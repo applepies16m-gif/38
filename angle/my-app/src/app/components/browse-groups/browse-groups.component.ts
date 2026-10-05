@@ -66,6 +66,13 @@ export class BrowseGroupsComponent implements OnInit {
         this.router.navigate(['/login']);
         return;
       }
+      // Banned from the whole system while logged in: end the
+      // session and let the login page explain why.
+      if (freshUser.isSystemBanned) {
+        this.authService.logout();
+        this.router.navigate(['/login'], { queryParams: { banned: 'yes' } });
+        return;
+      }
       this.authService.login(freshUser);
       this.currentUser = freshUser;
       this.cdr.markForCheck();
