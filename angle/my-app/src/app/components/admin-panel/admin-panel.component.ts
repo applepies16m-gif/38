@@ -122,7 +122,7 @@ export class AdminPanelComponent implements OnInit {
     });
   }
 
-  approveGroupRequest(req: GroupCreationRequest): void {
+approveGroupRequest(req: GroupCreationRequest): void {
   const newGroup: Partial<Group> = {
     title: req.proposedTitle,
     description: req.proposedDescription,
@@ -132,9 +132,27 @@ export class AdminPanelComponent implements OnInit {
   };
   this.groupService.createGroup(newGroup).subscribe(createdGroup => {
     this.groups.push(createdGroup);
-    this.groupService.updateGroupRequest(req.id, 'approved').subscribe(() => {
-      req.status = 'approved';
-      this.cdr.markForCheck();
+
+    // The requester becomes this group's admin -- both their role
+    // and their group membership need updating, since the Group
+    // Admin dashboard's route guard checks role specifically.
+    const requester = this.users.find(u => u.id === req.requestedBy);
+    const updatedGroupIds = requester
+      ? [...requester.groupIds, createdGroup.id]
+      : [createdGroup.id];
+
+    this.userService.updateUser(req.requestedBy, {
+      role: 'group_admin',
+      groupIds: updatedGroupIds
+    }).subscribe(() => {
+      if (requester) {
+        requester.role = 'group_admin';
+        requester.groupIds = updatedGroupIds;
+      }
+      this.groupService.updateGroupRequest(req.id, 'approved').subscribe(() => {
+        req.status = 'approved';
+        this.cdr.markForCheck();
+      });
     });
   });
 }
