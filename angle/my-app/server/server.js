@@ -36,6 +36,27 @@ function resolveTimestamp(doc) {
   return doc.timestamp;
 }
 
+// Fields a client may send when creating a user. The role, group
+// membership and ban flags are always set by the server instead.
+const USER_CREATE_FIELDS = ['username', 'password', 'displayName', 'email', 'dateOfBirth'];
+
+// Fields a client may change on an existing user. The admin pages
+// change role and group membership through this same route, so
+// those have to stay on the list.
+const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds'];
+
+// Returns a copy of source holding only the named fields, so
+// anything else a client sends is ignored.
+function pickFields(source, allowedFields) {
+  const picked = {};
+  for (const field of allowedFields) {
+    if (source[field] !== undefined) {
+      picked[field] = source[field];
+    }
+  }
+  return picked;
+}
+
 // --- Bootstrap ---
 
 app.get('/api/bootstrap-status', async (req, res) => {
@@ -80,9 +101,17 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/users', async (req, res) => {
+  const body = req.body || {};
+  // Only the whitelisted fields are kept. Every new account starts
+  // as a plain user in no groups, whatever the client sent.
   const newUser = {
-    ...req.body,
-    username: (req.body.username || '').toLowerCase()
+    ...pickFields(body, USER_CREATE_FIELDS),
+    username: (body.username || '').toLowerCase(),
+    role: 'user',
+    online: false,
+    groupIds: [],
+    bannedFromGroupIds: [],
+    isSystemBanned: false
   };
   const result = await getDb().collection('users').insertOne(newUser);
   res.status(201).json(toClientShape({ ...newUser, _id: result.insertedId }));
@@ -94,8 +123,11 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 app.put('/api/users/:id', async (req, res) => {
-  const updates = { ...req.body };
-  delete updates.id;
+  const updates = pickFields(req.body || {}, USER_UPDATE_FIELDS);
+  // MongoDB rejects an empty $set, so answer clearly instead.
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ message: 'No valid fields to update.' });
+  }
   await getDb().collection('users').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: updates }
