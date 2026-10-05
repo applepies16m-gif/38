@@ -94,16 +94,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     this.myGroupIds = currentUser.groupIds;
     this.applyMembership();
 
-    this.groupService.getGroups().subscribe((groups) => {
-      this.everyGroup = groups;
-      this.applyMembership();
-    });
-
-    this.channelService.getChannels().subscribe((channels) => {
-      this.allChannels = channels;
-      this.cdr.markForCheck();
-    });
-
+    this.loadGroupsAndChannels();
     this.refreshCurrentUser();
 
     // Tell the server which user this tab belongs to, so it counts
@@ -155,8 +146,21 @@ export class ChatShellComponent implements OnInit, OnDestroy {
 
     // This user's groups, role or ban status changed on the server
     // (an approval, a promotion, a ban), so re-read the account.
+    // The lists of groups and channels are re-read too, because the
+    // group they were just added to may not have existed when this
+    // page opened.
     this.socketService.getSocket().on('membershipChanged', () => {
       this.refreshCurrentUser();
+      this.loadGroupsAndChannels();
+    });
+
+    // A Group Admin added a channel: show it in the list straight
+    // away, without a reload.
+    this.socketService.getSocket().on('channelCreated', (channel: Channel) => {
+      if (!this.allChannels.some((existing) => existing.id === channel.id)) {
+        this.allChannels = [...this.allChannels, channel];
+        this.cdr.markForCheck();
+      }
     });
 
     this.socketService.getSocket().on('newMessage', (message: ChatMessage) => {
@@ -225,6 +229,21 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       );
   }
 
+  // Reads every group and every channel from the server. Called
+  // when the page opens and again whenever this user's membership
+  // changes.
+  private loadGroupsAndChannels(): void {
+    this.groupService.getGroups().subscribe((groups) => {
+      this.everyGroup = groups;
+      this.applyMembership();
+    });
+
+    this.channelService.getChannels().subscribe((channels) => {
+      this.allChannels = channels;
+      this.cdr.markForCheck();
+    });
+  }
+
   // Tells the server which user this browser tab belongs to.
   private announcePresence(): void {
     this.socketService.getSocket().emit('identify', { userId: this.currentUserId });
@@ -255,6 +274,39 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       .sort(
         (a, b) => Number(b.online) - Number(a.online) || a.displayName.localeCompare(b.displayName),
       );
+  }
+
+  // True if this user is one of the given group's admins.
+  isAdminOf(group: Group): boolean {
+    return (group.adminIds || []).includes(this.currentUserId);
+  }
+
+  // Asks the admins of one particular group for a new channel. The
+  // group is the one whose panel the button is in, never worked out
+  // from whichever channel happens to be open, and the prompt names
+  // it so the user can see where the request is going. Nothing is
+  // created until one of that group's admins approves it.
+  requestChannel(group: Group): void {
+    const name = prompt(`Name for the new channel you'd like in "${group.title}"?`);
+    if (name === null) {
+      return;
+    }
+    if (!name.trim()) {
+      this.channelNotice = 'A channel request needs a name.';
+      return;
+    }
+    this.groupService
+      .submitRoomRequest({ requestedBy: this.currentUserId, groupId: group.id, roomName: name })
+      .subscribe({
+        next: (request) => {
+          this.channelNotice = `Your request for a channel called "${request.roomName}" in "${group.title}" has been sent to that group's admins.`;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.channelNotice = err.error?.message || 'Your channel request could not be sent.';
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   // Asks the group's admins to remove or ban another member, with
@@ -423,6 +475,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     socket.off('connect');
     socket.off('presenceChanged');
     socket.off('membershipChanged');
+    socket.off('channelCreated');
     socket.off('channelDeleted');
     socket.off('notification');
 

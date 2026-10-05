@@ -16,6 +16,8 @@ const ACTION_TYPES: { value: string; label: string }[] = [
   { value: 'group_request_rejected', label: 'Group request rejected' },
   { value: 'ban_request_approved', label: 'Remove/ban request approved' },
   { value: 'ban_request_rejected', label: 'Remove/ban request rejected' },
+  { value: 'room_request_approved', label: 'Channel request approved' },
+  { value: 'room_request_rejected', label: 'Channel request rejected' },
   { value: 'group_created', label: 'Group created' },
   { value: 'group_updated', label: 'Group settings changed' },
   { value: 'admin_promoted', label: 'Admin promoted' },

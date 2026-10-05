@@ -74,20 +74,18 @@ export class GroupService {
     });
   }
 
-  // Every channel request. Kept from an earlier design: members can no
-  // longer submit these.
+  // Every request from a member for a new channel.
   getRoomRequests(): Observable<RoomRequest[]> {
     return this.http.get<RoomRequest[]>(`${environment.serverUrl}/api/room-requests`);
   }
 
-  // Asks for a new channel. Kept from an earlier design and not used
-  // by any page.
+  // A member asks the admins of one group for a new channel there.
   submitRoomRequest(request: Partial<RoomRequest>): Observable<RoomRequest> {
     return this.http.post<RoomRequest>(`${environment.serverUrl}/api/room-requests`, request);
   }
 
-  // Approves or rejects a channel request. Kept from an earlier
-  // design.
+  // A Group Admin approves or rejects a channel request. Approving
+  // creates the channel.
   updateRoomRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
     return this.http.put<void>(`${environment.serverUrl}/api/room-requests/${id}`, {
       status,

@@ -52,11 +52,11 @@
         </div>
       </div>
 <div class="panel">
-  <div class="panel-header" role="heading" aria-level="2">Pending Room Requests — {{ selectedGroup.title }}</div>
+  <div class="panel-header" role="heading" aria-level="2">Pending Channel Requests — {{ selectedGroup.title }}</div>
   <div class="panel-body">
     <table class="list-table" *ngIf="pendingRoomRequestsForGroup.length; else noRoomReq">
       <thead>
-        <tr><th>Room Name</th><th>Requested By</th><th></th></tr>
+        <tr><th>Channel Name</th><th>Requested By</th><th></th></tr>
       </thead>
       <tbody>
         <tr *ngFor="let rr of pendingRoomRequestsForGroup">
@@ -69,7 +69,7 @@
         </tr>
       </tbody>
     </table>
-    <ng-template #noRoomReq><p class="empty-text">No pending room requests.</p></ng-template>
+    <ng-template #noRoomReq><p class="empty-text">No pending channel requests.</p></ng-template>
   </div>
 </div>
 

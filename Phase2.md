@@ -84,7 +84,7 @@ The numbering follows the Phase 1 document.
 | 6 | A user can request a new group; on approval they become its admin | Done | `/api/group-requests`; Group Request page; Admin Panel |
 | 7 | Every group always has at least one admin; the last admin cannot delete their account | Done | Enforced in `POST /api/groups`, `PUT /api/groups/:id`, `DELETE /api/users/:id` and ban-request approval |
 | 8 | A user can be an admin of several groups | Done | `groups.adminIds`; the Group Admin page has a group switcher |
-| 9 | Group Admins create and remove channels | Done | `POST` and `DELETE /api/channels`; Group Admin page. Channel requests from ordinary members were dropped: admins create channels directly |
+| 9 | Group Admins create and remove channels; a member can ask for one, subject to an admin's approval | Done | `POST` and `DELETE /api/channels` on the Group Admin page; `/api/room-requests`, with "request a channel" in each group's panel in Chat |
 | 10 | "X has joined/left the room" notices, seen only by that channel | Done | Socket events `userJoined`, `userLeft` |
 | 11 | Only the last 5 messages of a channel are stored and shown | Done | `sendMessage` prunes to 5; `GET /api/messages` |
 | 12 | Messages can be text or images (JPEG, PNG, GIF) | Done | `POST /api/upload`; chat composer |
@@ -182,12 +182,13 @@ Only the 5 newest messages of each channel are kept.
 |---|---|---|
 | `joinRequests` | `userId`, `groupId`, `status`, `rejectionReason` | A user asking to join a group |
 | `groupRequests` | `requestedBy`, `proposedTitle`, `proposedDescription`, `proposedAgeLimit`, `status`, `rejectionReason` | A user asking for a new group |
+| `roomRequests` | `requestedBy`, `groupId`, `roomName`, `status`, `rejectionReason`, `createdAt` | A member asking for a new channel in one named group |
 | `banRequests` | `requestedBy`, `targetUserId`, `groupId`, `action` (`remove` or `ban`), `reason`, `reviewer` (`group_admin` or `super_admin`), `status`, `rejectionReason`, `createdAt` | Asking for someone to be removed or banned from a group |
 | `reports` | `reporterId`, `reportedUserId`, `groupId`, `reason`, `messageText`, `status` (`open`, `resolved`, `dismissed`), `decisionNote`, `createdAt`, `decidedAt` | One user reporting another |
 | `notifications` | `message`, `recipientId` (empty means everyone), `sentBy`, `createdAt` | Announcements from the Super Admin |
 | `auditLog` | `type`, `summary`, `actorId`, `actorName`, `actorRole`, `createdAt` | One line per admin action |
 
-`status` on a request is `pending`, `approved` or `rejected`. A `roomRequests` collection and its routes remain from an earlier design; nothing in the application uses them.
+`status` on a request is `pending`, `approved` or `rejected`.
 
 ---
 
@@ -337,6 +338,9 @@ Fields not in the list are ignored. `email` cannot be changed. `dateOfBirth` is 
 | `GET /api/group-requests` | | 200 all | |
 | `POST /api/group-requests` | `requestedBy`, `proposedTitle`, `proposedDescription`, `proposedAgeLimit?` | 201 | 400 invalid field; 404 |
 | `PUT /api/group-requests/:id` | `status`, `rejectionReason?` | 204 | 400 bad status; 404 |
+| `GET /api/room-requests` | | 200 all | |
+| `POST /api/room-requests` | `requestedBy`, `groupId`, `roomName` | 201 | 400 invalid name; 403 requester is not a member of that group; 404; 409 the group already has that channel, or it is already requested |
+| `PUT /api/room-requests/:id` | `status`, `rejectionReason?` | 204. Approving creates the channel in the group the request named | 400; 404; 409 already decided, or the group has gained that channel meanwhile |
 | `GET /api/ban-requests` | | 200 all | |
 | `POST /api/ban-requests` | `requestedBy`, `targetUserId`, `groupId`, `reason`, `action?` | 201, with `reviewer` set by the server | 400 invalid; 403 requester not in the group, or the target is a Group Admin and the requester is not; 404; 409 already pending |
 | `PUT /api/ban-requests/:id` | `status`, `rejectionReason?` | 204. Approving removes (and for `ban`, bans) the user | 400; 404; 409 already decided, or it would leave the group with no admin |
@@ -390,6 +394,7 @@ The app opens one Socket.io connection per browser tab. Each channel is a room n
 | `channelDenied` | one tab | `channelId`, `message` | A join or a message was refused, or the user was removed |
 | `presenceChanged` | everyone | `userId`, `online` | A user came online or went offline |
 | `membershipChanged` | all of one user's tabs | | The user's groups, role or bans changed; re-read the account |
+| `channelCreated` | everyone | the channel | A channel was added, directly or by an approved request |
 | `channelDeleted` | everyone | `id`, `groupId`, `name` | A channel was deleted |
 | `notification` | everyone, or one user's tabs | the notification | The Super Admin sent an announcement |
 
@@ -532,16 +537,46 @@ MongoDB must be running.
 
 | Tests | Folder | Command | Expected |
 |---|---|---|---|
-| Backend | `angle/my-app/server` | `npm test` | 59 pass |
+| Backend | `angle/my-app/server` | `npm test` | 62 pass |
 | Angular unit | `angle/my-app` | `npx ng test --watch=false` | 54 pass |
-| End-to-end | `angle/my-app` | `npm run e2e` | 6 pass |
+| End-to-end | `angle/my-app` | `npm run e2e` | 17 pass |
 | Accessibility check | `angle/my-app` | `npm run check:a11y` | ALL CHECKS PASSED |
 
 The end-to-end test starts its own server (port 3100) and its own copy of the app (port 4300); the first run takes a minute or two while the app builds. It uses the Microsoft Edge installed on the computer. Add `-- --headed` to watch it.
 
+### The marker's test plan
+
+The test plan supplied for marking is carried out, step by step, by `e2e/marker-test-plan.e2e.ts`. It opens four separate browser windows (BW1 to BW4), as the plan describes, and keeps them open, so it also proves that each window updates by itself when someone else acts.
+
+| Plan section | Step | Result |
+|---|---|---|
+| Running the App | App starts; the first visitor is offered the Super Admin bootstrap | Works |
+| | Log out and log in as Super Admin; the bootstrap is not offered again | Works. A second attempt answers "already been completed" |
+| Register a New User (User1) | Create "user1@com.au", password "123", born 01/01/1971 | Works with one deliberate difference: "123" is refused by the client's password rule (requirement 26), so a password of 8 or more characters with an uppercase letter is used |
+| | The interface is arranged around chat | Works |
+| | Request a group "group1", minimum age 15 | Works |
+| Super Admin | Create the group from the user's request | Works. The request shows the name, the minimum age and who asked |
+| | Promote that user to Group Admin of the group | Works. Approving the request does this in the same step |
+| Register a new user (User 2) | Register "user2@com.au", born 01/10/2010 (16) | Works |
+| | Request to join the new group | Works. 16 meets the limit of 15 |
+| Register a new user (User 3) | Register "user3@com.au", born 01/10/2018 (8) | Works |
+| | Request to join the group (should fail, under age) | Works. The button is disabled with "You must be 15 or older to join.", and the server refuses the request too |
+| | Delete User3 | Works. The user deletes their own account on Profile; the Super Admin can also remove a user |
+| Group Admin (User 1) | Add a channel to the group | Works |
+| | View requests and add user2 to the group | Works |
+| User View (User 2) | View subscribed groups and channels | Works. The group and both channels appear without a reload |
+| | View profile page | Works |
+| | Show the UI where chats occur | Works. A message is sent and shown |
+| Group Admin (User 1) | Promote user2 to Group Admin | Works |
+| | User2 can administer the group the same as User1 | Works. "Manage Group" appears for user2 without a reload |
+| | Demote user1 to a standard user, still a member | Works. User1 steps down themself; one admin cannot demote another directly (requirement 17). User1 becomes a standard user and stays in the group |
+| Super User | Show where audit logs can be seen | Works. The log lists the approvals, the promotion, the demotion, the new channel and the deleted user |
+
+The plan's closing line says records are held in a JSON file on the server. That was Phase 1; in Phase 2 they are in MongoDB (section 5).
+
 ### Every automated test
 
-There are 119 automated tests: 59 backend, 54 Angular unit and 6 end-to-end steps.
+There are 133 automated tests: 62 backend, 54 Angular unit and 17 end-to-end steps.
 
 #### Backend tests
 
@@ -582,52 +617,55 @@ There are 119 automated tests: 59 backend, 54 Angular unit and 6 end-to-end step
 | 26 | a group request carries a minimum age, which must be a whole number |
 | 27 | a channel needs a name and a real group |
 | 28 | deleting a channel removes its messages, but a group keeps its last channel |
+| 29 | a member can ask for a channel in a group they belong to, and only there |
+| 30 | approving a channel request creates the channel in the requested group; rejecting does not |
+| 31 | a channel request is refused at approval if the group has gained that channel meanwhile |
 
 **Real-time chat** (`server/test/chat.test.js`)
 
 | # | Test |
 |---|---|
-| 29 | a user who is not a member is refused, and nobody is told they joined |
-| 30 | members exchange messages, and the sender id is the one the socket joined as |
-| 31 | a socket that has not joined the channel cannot send into it |
-| 32 | only the last 5 messages of a channel are kept, and history returns them oldest first |
-| 33 | an empty message is dropped |
-| 34 | a user can delete their own message, live for everyone, but not someone else's |
-| 35 | bad payloads on any socket event do not crash the server |
-| 36 | a user is online while at least one of their tabs is open |
-| 37 | signing out marks the user offline even though the tab stays open |
-| 38 | a member banned from the group is removed from the open channel straight away |
-| 39 | closing a tab tells the channel the user left, exactly once |
-| 40 | an unknown or malformed message id is ignored by delete |
+| 32 | a user who is not a member is refused, and nobody is told they joined |
+| 33 | members exchange messages, and the sender id is the one the socket joined as |
+| 34 | a socket that has not joined the channel cannot send into it |
+| 35 | only the last 5 messages of a channel are kept, and history returns them oldest first |
+| 36 | an empty message is dropped |
+| 37 | a user can delete their own message, live for everyone, but not someone else's |
+| 38 | bad payloads on any socket event do not crash the server |
+| 39 | a user is online while at least one of their tabs is open |
+| 40 | signing out marks the user offline even though the tab stays open |
+| 41 | a member banned from the group is removed from the open channel straight away |
+| 42 | closing a tab tells the channel the user left, exactly once |
+| 43 | an unknown or malformed message id is ignored by delete |
 
 **Moderation, notifications and the audit log** (`server/test/moderation.test.js`)
 
 | # | Test |
 |---|---|
-| 41 | blocking is saved on the blocker's account and can be undone |
-| 42 | a report needs a reason and a reporter who belongs to the group |
-| 43 | the Super Admin decides a report once; group admins can list their group's reports |
-| 44 | a member can ask for another member to be removed; approval removes without banning |
-| 45 | approving a ban request removes the member and bans them from the group |
-| 46 | a Group Admin cannot be banned directly, or at an ordinary member's request |
-| 47 | another admin of the group can ask, and the Super Admin's approval removes them as admin |
-| 48 | only the Super Admin can send a notification, to everyone or to one user |
-| 49 | admin actions are written to the audit log with who did them |
-| 50 | things ordinary users do are not logged as admin actions |
-| 51 | the audit log can be filtered by action type and by date |
+| 44 | blocking is saved on the blocker's account and can be undone |
+| 45 | a report needs a reason and a reporter who belongs to the group |
+| 46 | the Super Admin decides a report once; group admins can list their group's reports |
+| 47 | a member can ask for another member to be removed; approval removes without banning |
+| 48 | approving a ban request removes the member and bans them from the group |
+| 49 | a Group Admin cannot be banned directly, or at an ordinary member's request |
+| 50 | another admin of the group can ask, and the Super Admin's approval removes them as admin |
+| 51 | only the Super Admin can send a notification, to everyone or to one user |
+| 52 | admin actions are written to the audit log with who did them |
+| 53 | things ordinary users do are not logged as admin actions |
+| 54 | the audit log can be filtered by action type and by date |
 
 **Images** (`server/test/uploads.test.js`)
 
 | # | Test |
 |---|---|
-| 52 | PNG, JPEG and GIF images are accepted and served back unchanged |
-| 53 | other file types are refused with a clear message |
-| 54 | a file that only claims to be an image is refused (its first bytes are checked) |
-| 55 | an image over 2 MB is refused; one of exactly 2 MB is accepted |
-| 56 | a chat message keeps an uploaded image but drops an outside address |
-| 57 | an image file is deleted when its message drops out of the last 5 |
-| 58 | deleting a message deletes its image file too |
-| 59 | a profile picture is saved on the user, and replacing it deletes the old file |
+| 55 | PNG, JPEG and GIF images are accepted and served back unchanged |
+| 56 | other file types are refused with a clear message |
+| 57 | a file that only claims to be an image is refused (its first bytes are checked) |
+| 58 | an image over 2 MB is refused; one of exactly 2 MB is accepted |
+| 59 | a chat message keeps an uploaded image but drops an outside address |
+| 60 | an image file is deleted when its message drops out of the last 5 |
+| 61 | deleting a message deletes its image file too |
+| 62 | a profile picture is saved on the user, and replacing it deletes the old file |
 
 #### Angular unit tests
 
@@ -725,7 +763,7 @@ There are 119 automated tests: 59 backend, 54 Angular unit and 6 end-to-end step
 | 53 | draws a panel for each group and disables the button where joining is not allowed |
 | 54 | narrows the list when searching, by title or description |
 
-#### End-to-end test
+#### End-to-end tests
 
 **One journey through the application, in order** (`e2e/chat.e2e.ts`)
 
@@ -737,3 +775,19 @@ There are 119 automated tests: 59 backend, 54 Angular unit and 6 end-to-end step
 | 4 | the Super Admin creates a group and makes the new user its admin |
 | 5 | the user sends a message in the group, sees it, and deletes it |
 | 6 | a member cannot open the Super Admin's pages |
+| 7 | a member asks for a channel in a group, its admin approves, and it appears without a reload |
+| 8 | a group admin is not offered "request a channel" in their own group |
+
+**The marker's test plan, in four browser windows** (`e2e/marker-test-plan.e2e.ts`)
+
+| # | Test |
+|---|---|
+| 9 | Running the App: the first visitor bootstraps the Super Admin, and it is not offered again |
+| 10 | Register a New User (User1): registers, sees a chat interface, and requests "group1" with minimum age 15 |
+| 11 | Super Admin: creates the group from the request, which makes user1 its Group Admin |
+| 12 | Register a new user (User 2): a 16-year-old registers and asks to join the group |
+| 13 | Register a new user (User 3): an 8-year-old is refused for being under age, then deleted |
+| 14 | Group Admin (User 1): adds a channel and accepts user2 into the group |
+| 15 | User View (User 2): sees their groups and channels, their profile, and the chat |
+| 16 | Group Admin (User 1): promotes user2, who can then administer the group, and user1 is demoted |
+| 17 | Super User: the audit log shows what the admins did |

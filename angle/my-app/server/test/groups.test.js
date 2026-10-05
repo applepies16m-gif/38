@@ -280,3 +280,125 @@ test('deleting a channel removes its messages, but a group keeps its last channe
   assert.equal(await server.db.collection('messages').countDocuments({ channelId: general }), 1);
   assert.equal((await server.api('DELETE', '/channels/' + extra.id)).status, 404);
 });
+
+test('a member can ask for a channel in a group they belong to, and only there', async () => {
+  const groupA = await server.createGroup('Requests A', [admin.id]);
+  const groupB = await server.createGroup('Requests B', [admin.id]);
+  const member = await server.register('channelasker');
+  await server.addToGroup(member.id, groupA.id);
+  const ask = (groupId, roomName, requestedBy = member.id) =>
+    server.api('POST', '/room-requests', { requestedBy, groupId, roomName });
+
+  const created = await ask(groupA.id, '  homework-help ');
+  assert.equal(created.status, 201);
+  assert.equal(created.body.groupId, groupA.id, 'the request is tied to the group that was named');
+  assert.equal(created.body.roomName, 'homework-help');
+  assert.equal(created.body.status, 'pending');
+
+  // The member belongs to group A only, so a request for group B is refused.
+  assert.equal((await ask(groupB.id, 'homework-help')).status, 403);
+
+  assert.equal((await ask(groupA.id, '   ')).status, 400);
+  assert.equal((await ask(groupA.id, 'x'.repeat(31))).status, 400);
+  assert.equal((await ask(groupA.id, 'general')).status, 409, 'the group already has that channel');
+  assert.equal(
+    (await ask(groupA.id, 'homework-help')).status,
+    409,
+    'already requested and waiting',
+  );
+  assert.equal((await ask('000000000000000000000000', 'x')).status, 404);
+  assert.equal((await ask(groupA.id, 'x', 'nobody')).status, 404);
+});
+
+test('approving a channel request creates the channel in the requested group; rejecting does not', async () => {
+  const groupA = await server.createGroup('Decide A', [admin.id]);
+  const groupB = await server.createGroup('Decide B', [admin.id]);
+  const member = await server.register('channelwaiter');
+  await server.addToGroup(member.id, groupA.id);
+  const channelNames = async (groupId) =>
+    (await server.api('GET', '/channels?groupId=' + groupId)).body.map((c) => c.name).sort();
+
+  const wanted = (
+    await server.api('POST', '/room-requests', {
+      requestedBy: member.id,
+      groupId: groupA.id,
+      roomName: 'projects',
+    })
+  ).body;
+  const unwanted = (
+    await server.api('POST', '/room-requests', {
+      requestedBy: member.id,
+      groupId: groupA.id,
+      roomName: 'memes',
+    })
+  ).body;
+
+  assert.equal(
+    (await server.api('PUT', '/room-requests/' + wanted.id, { status: 'maybe' })).status,
+    400,
+  );
+  assert.equal(
+    (await server.api('PUT', '/room-requests/' + wanted.id, { status: 'approved' }, admin.id))
+      .status,
+    204,
+  );
+  assert.deepEqual(await channelNames(groupA.id), ['general', 'projects']);
+  assert.deepEqual(await channelNames(groupB.id), ['general'], 'the other group is untouched');
+  assert.equal(
+    (await server.api('PUT', '/room-requests/' + wanted.id, { status: 'rejected' })).status,
+    409,
+  );
+
+  assert.equal(
+    (
+      await server.api(
+        'PUT',
+        '/room-requests/' + unwanted.id,
+        { status: 'rejected', rejectionReason: 'Off topic' },
+        admin.id,
+      )
+    ).status,
+    204,
+  );
+  assert.deepEqual(await channelNames(groupA.id), ['general', 'projects']);
+  const stored = (await server.api('GET', '/room-requests')).body.find((r) => r.id === unwanted.id);
+  assert.equal(stored.status, 'rejected');
+  assert.equal(stored.rejectionReason, 'Off topic');
+
+  const log = (await server.api('GET', '/audit-log')).body.map((entry) => entry.type);
+  assert.ok(log.includes('room_request_approved'));
+  assert.ok(log.includes('room_request_rejected'));
+  assert.equal(
+    (await server.api('PUT', '/room-requests/not-an-id', { status: 'approved' })).status,
+    404,
+  );
+});
+
+test('a channel request is refused at approval if the group has gained that channel meanwhile', async () => {
+  const group = await server.createGroup('Race', [admin.id]);
+  const member = await server.register('channelracer');
+  await server.addToGroup(member.id, group.id);
+  const request = (
+    await server.api('POST', '/room-requests', {
+      requestedBy: member.id,
+      groupId: group.id,
+      roomName: 'news',
+    })
+  ).body;
+  // An admin adds the same channel directly before deciding the request.
+  assert.equal(
+    (await server.api('POST', '/channels', { name: 'news', groupId: group.id })).status,
+    201,
+  );
+
+  const response = await server.api('PUT', '/room-requests/' + request.id, { status: 'approved' });
+  assert.equal(response.status, 409);
+  const channels = (await server.api('GET', '/channels?groupId=' + group.id)).body.filter(
+    (c) => c.name === 'news',
+  );
+  assert.equal(channels.length, 1, 'no duplicate channel was created');
+  assert.equal(
+    (await server.api('GET', '/room-requests')).body.find((r) => r.id === request.id).status,
+    'rejected',
+  );
+});

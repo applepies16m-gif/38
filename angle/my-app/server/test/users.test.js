@@ -233,11 +233,20 @@ test('appearance settings must be whole numbers inside the slider ranges', async
 
 test('the About Me text is saved trimmed, and refused when too long', async () => {
   const user = await server.register('aboutme');
-  assert.equal((await server.api('PUT', '/users/' + user.id, { bio: '  I like chess.  ' })).status, 204);
+  assert.equal(
+    (await server.api('PUT', '/users/' + user.id, { bio: '  I like chess.  ' })).status,
+    204,
+  );
   assert.equal((await server.userInDb(user.id)).bio, 'I like chess.');
-  assert.equal((await server.api('GET', '/users')).body.find((u) => u.id === user.id).bio, 'I like chess.');
+  assert.equal(
+    (await server.api('GET', '/users')).body.find((u) => u.id === user.id).bio,
+    'I like chess.',
+  );
 
-  assert.equal((await server.api('PUT', '/users/' + user.id, { bio: 'x'.repeat(501) })).status, 400);
+  assert.equal(
+    (await server.api('PUT', '/users/' + user.id, { bio: 'x'.repeat(501) })).status,
+    400,
+  );
   assert.equal((await server.api('PUT', '/users/' + user.id, { bio: 42 })).status, 400);
   assert.equal((await server.userInDb(user.id)).bio, 'I like chess.');
 });

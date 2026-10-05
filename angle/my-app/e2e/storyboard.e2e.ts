@@ -1,4 +1,5 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { resetDatabase } from './reset-database';
 
 // Produces the storyboard screenshots used in Phase2.md.
 //
@@ -14,6 +15,11 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 // saves a picture of it to docs/storyboards.
 test.skip(!process.env['STORYBOARD'], 'Only runs when STORYBOARD=1 is set.');
 test.describe.configure({ mode: 'serial' });
+
+// Start from an empty test database, whatever ran before this file.
+test.beforeAll(async () => {
+  await resetDatabase();
+});
 
 const API = 'http://localhost:3100/api';
 const PASSWORD = 'Testing123';

@@ -158,9 +158,8 @@ export class GroupAdminComponent implements OnInit {
     );
   }
 
-  // Channel requests for the selected group that nobody has decided
-  // yet. Kept from an earlier design: members can no longer submit
-  // these.
+  // Channel requests from members of the selected group that nobody
+  // has decided yet.
   get pendingRoomRequestsForGroup(): RoomRequest[] {
     return this.roomRequests.filter(
       (r) => r.groupId === this.selectedGroupId && r.status === 'pending',
@@ -238,19 +237,34 @@ export class GroupAdminComponent implements OnInit {
     });
   }
 
-  // Approves a channel request; the server then creates the channel.
-  // Kept from an earlier design.
+  // Approves a member's request for a channel. The server creates
+  // the channel in the group the request named; the Channels table
+  // is then re-read so it shows straight away.
   approveRoomRequest(req: RoomRequest): void {
-    this.groupService.updateRoomRequest(req.id, 'approved').subscribe(() => {
-      req.status = 'approved';
-      this.cdr.markForCheck();
+    this.groupService.updateRoomRequest(req.id, 'approved').subscribe({
+      next: () => {
+        req.status = 'approved';
+        this.channelService.getChannels().subscribe((channels) => {
+          this.allChannels = channels;
+          this.cdr.markForCheck();
+        });
+        this.cdr.markForCheck();
+      },
+      // For example the group already has a channel of that name;
+      // the server has then marked the request rejected.
+      error: (err) => {
+        const reason = err.error?.message || 'The request could not be approved.';
+        req.status = 'rejected';
+        req.rejectionReason = reason;
+        alert(`This request can't be approved and has been rejected: ${reason}`);
+        this.cdr.markForCheck();
+      },
     });
   }
 
-  // Rejects a channel request with a reason. Kept from an earlier
-  // design.
+  // Rejects a member's request for a channel, asking for a reason.
   rejectRoomRequest(req: RoomRequest): void {
-    const reason = prompt('Reason for rejecting this room request?');
+    const reason = prompt('Reason for rejecting this channel request?');
     if (reason === null) {
       return;
     }

@@ -12,11 +12,12 @@ export interface JoinRequest {
   rejectionReason?: string;
 }
 
+// A member's request for a new channel in one particular group.
 export interface RoomRequest {
   id: string;
-  requestedBy: string; // userId
-  groupId: string;
-  roomName: string;
+  requestedBy: string; // userId of the member asking
+  groupId: string; // the group the channel is wanted in
+  roomName: string; // the name asked for
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
 }

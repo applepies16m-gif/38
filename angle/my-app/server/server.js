@@ -1119,10 +1119,9 @@ app.post('/api/groups', async (req, res) => {
   // Every group needs somewhere to chat from the moment it exists,
   // rather than requiring a separate manual step to add the first
   // channel.
-  await getDb().collection('channels').insertOne({
-    name: 'general',
-    groupId: newGroup.id,
-  });
+  const general = { name: 'general', groupId: newGroup.id };
+  const generalResult = await getDb().collection('channels').insertOne(general);
+  io.emit('channelCreated', toClientShape({ ...general, _id: generalResult.insertedId }));
 
   res.status(201).json(newGroup);
 });
@@ -1361,35 +1360,137 @@ app.get('/api/room-requests', async (req, res) => {
   res.json(requests.map(toClientShape));
 });
 
-// Asks for a new channel. Kept from an earlier design: no page
-// submits these now, since admins create channels directly.
+// A member asks for a new channel in one particular group. The
+// group is named in the request itself, and the requester must be
+// a member of it, so a request can't land in the wrong group. One
+// of that group's admins decides; approving creates the channel.
 app.post('/api/room-requests', async (req, res) => {
-  const newRequest = { ...req.body, status: 'pending' };
+  const body = req.body || {};
+  const requester = await findUser(body.requestedBy);
+  if (!requester) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+  const group =
+    typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
+      ? await getDb()
+          .collection('groups')
+          .findOne({ _id: new ObjectId(body.groupId) })
+      : null;
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found.' });
+  }
+  if (!(requester.groupIds || []).includes(body.groupId)) {
+    return res
+      .status(403)
+      .json({ message: 'Only a member of the group can ask for a channel in it.' });
+  }
+
+  if (!isFilledText(body.roomName)) {
+    return res.status(400).json({ message: 'A channel name is required.' });
+  }
+  const roomName = body.roomName.trim();
+  if (roomName.length > MAX_CHANNEL_NAME_LENGTH) {
+    return res
+      .status(400)
+      .json({ message: `Channel name must be ${MAX_CHANNEL_NAME_LENGTH} characters or fewer.` });
+  }
+
+  // No point asking for a channel the group already has, or one
+  // that has already been asked for and is waiting.
+  const existing = await getDb()
+    .collection('channels')
+    .findOne({ groupId: body.groupId, name: roomName });
+  if (existing) {
+    return res
+      .status(409)
+      .json({ message: `"${group.title}" already has a channel called "${roomName}".` });
+  }
+  const pending = await getDb()
+    .collection('roomRequests')
+    .findOne({ groupId: body.groupId, roomName, status: 'pending' });
+  if (pending) {
+    return res
+      .status(409)
+      .json({ message: 'That channel has already been requested and is waiting for a decision.' });
+  }
+
+  const newRequest = {
+    requestedBy: requester._id.toString(),
+    groupId: body.groupId,
+    roomName,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
   const result = await getDb().collection('roomRequests').insertOne(newRequest);
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
 });
 
-// Decides a channel request; approving creates the channel. Kept
-// from an earlier design.
+// A Group Admin approves or rejects a channel request. Approving
+// creates the channel in the group the request named.
 app.put('/api/room-requests/:id', async (req, res) => {
-  const { status, rejectionReason } = req.body;
-  await getDb()
-    .collection('roomRequests')
-    .updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status, rejectionReason } });
+  const { status, rejectionReason } = req.body || {};
+  if (status !== 'approved' && status !== 'rejected') {
+    return res.status(400).json({ message: 'Status must be approved or rejected.' });
+  }
+  const roomRequests = getDb().collection('roomRequests');
+  const request = ObjectId.isValid(req.params.id)
+    ? await roomRequests.findOne({ _id: new ObjectId(req.params.id) })
+    : null;
+  if (!request) {
+    return res.status(404).json({ message: 'Channel request not found.' });
+  }
+  if (request.status !== 'pending') {
+    return res.status(409).json({ message: 'This request has already been decided.' });
+  }
+  const groupTitle = await titleOfGroup(request.groupId);
+  const requesterName = await nameOfUser(request.requestedBy);
 
-  if (status === 'approved') {
-    // Approving a room request actually creates the real channel.
-    const request = await getDb()
-      .collection('roomRequests')
-      .findOne({ _id: new ObjectId(req.params.id) });
-    await getDb().collection('channels').insertOne({
-      name: request.roomName,
-      groupId: request.groupId,
-    });
+  if (status === 'rejected') {
+    await roomRequests.updateOne({ _id: request._id }, { $set: { status, rejectionReason } });
+    await logAdminAction(
+      req,
+      'room_request_rejected',
+      `Rejected the channel "${request.roomName}" requested by ${requesterName} for ${groupTitle}${rejectionReason ? ': ' + rejectionReason : ''}`,
+    );
+    return res.status(204).send();
   }
 
+  // The group may have been given this channel, or deleted, since
+  // the request was made.
+  const group = ObjectId.isValid(request.groupId)
+    ? await getDb()
+        .collection('groups')
+        .findOne({ _id: new ObjectId(request.groupId) })
+    : null;
+  const duplicate = group
+    ? await getDb()
+        .collection('channels')
+        .findOne({ groupId: request.groupId, name: request.roomName })
+    : null;
+  if (!group || duplicate) {
+    const reason = group
+      ? 'The group already has a channel with that name.'
+      : 'The group no longer exists.';
+    await roomRequests.updateOne(
+      { _id: request._id },
+      { $set: { status: 'rejected', rejectionReason: reason } },
+    );
+    return res.status(409).json({ message: reason });
+  }
+
+  const newChannel = { name: request.roomName, groupId: request.groupId };
+  const result = await getDb().collection('channels').insertOne(newChannel);
+  await roomRequests.updateOne({ _id: request._id }, { $set: { status: 'approved' } });
+  // Open chat pages add the channel to their list straight away.
+  io.emit('channelCreated', toClientShape({ ...newChannel, _id: result.insertedId }));
+  await logAdminAction(
+    req,
+    'room_request_approved',
+    `Approved the channel "${request.roomName}" requested by ${requesterName} for ${groupTitle}`,
+  );
   res.status(204).send();
 });
+
 // --- Ban Requests ---
 
 app.get('/api/ban-requests', async (req, res) => {
@@ -1450,12 +1551,10 @@ app.post('/api/ban-requests', async (req, res) => {
   const admins = group.adminIds || [];
   const targetIsAdmin = admins.includes(targetId);
   if (targetIsAdmin && !admins.includes(requesterId)) {
-    return res
-      .status(403)
-      .json({
-        message:
-          'Only another admin of this group can ask for a Group Admin to be removed or banned.',
-      });
+    return res.status(403).json({
+      message:
+        'Only another admin of this group can ask for a Group Admin to be removed or banned.',
+    });
   }
 
   const pending = await getDb().collection('banRequests').findOne({
@@ -1528,11 +1627,9 @@ app.put('/api/ban-requests/:id', async (req, res) => {
   // A group must always keep an admin, even when one is removed.
   const admins = group.adminIds || [];
   if (admins.includes(targetId) && admins.length <= 1) {
-    return res
-      .status(409)
-      .json({
-        message: `${target.displayName || target.username} is the only admin of "${group.title}". Appoint another admin first.`,
-      });
+    return res.status(409).json({
+      message: `${target.displayName || target.username} is the only admin of "${group.title}". Appoint another admin first.`,
+    });
   }
 
   const changes = { $pull: { groupIds: request.groupId } };
@@ -1599,8 +1696,11 @@ app.post('/api/channels', async (req, res) => {
 
   const newChannel = { name, groupId: body.groupId };
   const result = await getDb().collection('channels').insertOne(newChannel);
+  const created = toClientShape({ ...newChannel, _id: result.insertedId });
+  // Open chat pages add the channel to their list straight away.
+  io.emit('channelCreated', created);
   await logAdminAction(req, 'channel_created', `Created the channel "${name}" in "${group.title}"`);
-  res.status(201).json(toClientShape({ ...newChannel, _id: result.insertedId }));
+  res.status(201).json(created);
 });
 
 // Deletes a channel, with its messages and their image files.

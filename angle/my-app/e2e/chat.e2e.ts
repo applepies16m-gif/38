@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { resetDatabase } from './reset-database';
 
 // End-to-end test: one journey through the real app in a real
 // browser, from an empty database to a chat message.
@@ -7,6 +8,11 @@ import { test, expect, Page } from '@playwright/test';
 // in during step 4), so they run in order and stop at the first
 // failure.
 test.describe.configure({ mode: 'serial' });
+
+// Start from an empty test database, whatever ran before this file.
+test.beforeAll(async () => {
+  await resetDatabase();
+});
 
 const PASSWORD = 'Testing123';
 
@@ -119,4 +125,82 @@ test("6. a member cannot open the Super Admin's pages", async ({ page }) => {
   await expect(page).toHaveURL(/\/chat/);
   await page.goto('/audit-log');
   await expect(page).toHaveURL(/\/chat/);
+});
+
+test('7. a member asks for a channel in a group, its admin approves, and it appears without a reload', async ({
+  page,
+  browser,
+}) => {
+  // Bob registers and asks to join the group; Alice, its admin, lets him in.
+  const bobContext = await browser.newContext();
+  const bob = await bobContext.newPage();
+  await bob.goto('/register');
+  await bob.getByLabel('First Name').fill('Bob');
+  await bob.getByLabel('Last Name').fill('Tester');
+  await bob.getByLabel('Username').fill('bob');
+  await bob.getByLabel('Email').fill('bob@example.com');
+  await bob.getByLabel('Date of Birth').fill('1998-07-07');
+  await bob.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await bob.getByLabel('Confirm Password').fill(PASSWORD);
+  await bob.getByRole('button', { name: 'Create Account' }).click();
+  await expect(bob).toHaveURL(/\/chat/);
+  await bob.getByRole('link', { name: 'Browse Groups' }).first().click();
+  await bob
+    .locator('.panel')
+    .filter({ hasText: 'E2E Group' })
+    .getByRole('button', { name: 'Request to Join' })
+    .click();
+  // Wait until the request has been saved before leaving the page.
+  await expect(
+    bob
+      .locator('.panel')
+      .filter({ hasText: 'E2E Group' })
+      .getByRole('button', { name: 'Requested' }),
+  ).toBeDisabled();
+  await bob.goto('/chat');
+
+  await logIn(page, 'alice');
+  await expect(page).toHaveURL(/\/chat/);
+  await page.goto('/group-admin');
+  await page
+    .getByRole('row')
+    .filter({ hasText: 'Bob Tester' })
+    .getByRole('button', { name: 'approve' })
+    .click();
+
+  // The group appears in Bob's open window. As a member who is not
+  // its admin, he is offered "request a channel" in that group's panel.
+  const groupPanel = bob.locator('.panel').filter({ hasText: 'E2E Group' });
+  await expect(groupPanel.getByRole('button', { name: '# general' })).toBeVisible();
+  bob.once('dialog', (dialog) => {
+    // The prompt names the group the request is for.
+    expect(dialog.message()).toContain('E2E Group');
+    dialog.accept('study-tips');
+  });
+  await groupPanel.getByRole('button', { name: 'request a channel' }).click();
+  await expect(bob.getByRole('log')).toContainText('"study-tips" in "E2E Group"');
+
+  // Alice sees the request for her group and approves it.
+  await page.reload();
+  const request = page
+    .getByRole('row')
+    .filter({ hasText: '# study-tips' })
+    .filter({ hasText: 'Bob Tester' });
+  await request.getByRole('button', { name: 'approve' }).click();
+  await expect(page.getByRole('cell', { name: '# study-tips' })).toBeVisible();
+
+  // The new channel appears for Bob without reloading, and he can use it.
+  await expect(groupPanel.getByRole('button', { name: '# study-tips' })).toBeVisible();
+  await groupPanel.getByRole('button', { name: '# study-tips' }).click();
+  await bob.getByLabel('Write a message').fill('Thanks for the channel');
+  await bob.getByRole('button', { name: 'Send' }).click();
+  await expect(bob.getByRole('log').getByText('Thanks for the channel')).toBeVisible();
+  await bobContext.close();
+});
+
+test('8. a group admin is not offered "request a channel" in their own group', async ({ page }) => {
+  await logIn(page, 'alice');
+  const groupPanel = page.locator('.panel').filter({ hasText: 'E2E Group' });
+  await expect(groupPanel.getByRole('button', { name: '# general' })).toBeVisible();
+  await expect(groupPanel.getByRole('button', { name: 'request a channel' })).toHaveCount(0);
 });

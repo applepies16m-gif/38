@@ -33,6 +33,13 @@
     >
       # {{ ch.name }}
     </button>
+    <!-- A member asks this group's admins for a new channel. The
+         button sits in the group's own panel and passes that group,
+         so the request can't go to a different one. Admins of the
+         group add channels directly on the Group Admin page. -->
+    <div class="request-channel-row" *ngIf="!isAdminOf(g)">
+      <button type="button" class="link-button" (click)="requestChannel(g)">request a channel</button>
+    </div>
   </div>
 </div>
 
