@@ -120,7 +120,11 @@ The numbering follows the Phase 1 document.
 
 The Phase 1 assumptions still hold: no content moderation, no OAuth, no clickable links in messages, no replies to a specific message, no push notifications, one language, tablet and desktop widths only.
 
-**HTTPS** was listed for the final submission. The application currently runs over HTTP on `localhost`. See section 12.
+**One requirement from the client's notes is not met:**
+
+| Requirement | Status | Reason |
+|---|---|---|
+| HTTPS should be used between the client and the server, and on final submission | Not implemented (my decision) | The application is run and demonstrated on one computer over `localhost`, so it uses plain HTTP. See section 12 |
 
 ---
 
@@ -508,7 +512,7 @@ These are screenshots of the finished application, taken automatically by `e2e/s
 ## 12. Known Limitations
 
 - **There is no login token.** After login, the server is told who is calling by an id the browser sends; it cannot prove that id is genuine. The pages only offer each person the actions their role allows, and the server checks every rule about the data, but someone sending requests by hand could claim to be another user. The fix is a signed token issued at login and checked by the server on every request.
-- **HTTPS is not set up.** The application runs over HTTP on `localhost`.
+- **HTTPS is not implemented.** The application runs over plain HTTP on `localhost`, between the browser and the server and for the socket connection, so that traffic is not encrypted. The client's notes ask for HTTPS; leaving it out was my decision (section 4.2).
 - **Uploaded images are public** to anyone who knows their address. The addresses are long and random, which makes them hard to guess but is not access control.
 - **The date of birth is self-declared.** Age limits rest on what the user enters.
 - **Blocking is applied by the blocker's browser.** The server still delivers the messages; the page hides them.
