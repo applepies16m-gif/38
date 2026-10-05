@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -7,6 +7,10 @@ import { User } from '../../models/user.model';
 import { ChatMessage, SystemMessage } from '../../models/message.model';
 import { AuthService } from '../../services/auth.service';
 import { SocketService } from '../../services/socket.service';
+import { GroupService } from '../../services/group.service';
+import { ChannelService } from '../../services/channel.service';
+import { UserService } from '../../services/user.service';
+import { MessageService } from '../../services/message.service';
 
 @Component({
   selector: 'app-chat-shell',
@@ -15,45 +19,32 @@ import { SocketService } from '../../services/socket.service';
   templateUrl: './chat-shell.component.html',
   styleUrl: './chat-shell.component.css'
 })
-export class ChatShellComponent implements OnInit {
+export class ChatShellComponent implements OnInit, OnDestroy {
   currentUsername = '';
+  currentUserId = '';
   currentRole: 'super_admin' | 'group_admin' | 'user' = 'user';
-
-  groups: Group[] = [
-    { id: 'g1', title: '2802ICT Study Group', description: 'Study group for 2802ICT students working through search algorithms and CSP.', ageLimit: 0, adminIds: ['u3'], channelIds: ['c1', 'c2'] },
-    { id: 'g2', title: 'Casual Chat', description: 'General off-topic chat for classmates.', ageLimit: 0, adminIds: ['u3'], channelIds: ['c3'] }
-  ];
-
-  channels: Channel[] = [
-    { id: 'c1', name: 'general', groupId: 'g1' },
-    { id: 'c2', name: 'assignment-help', groupId: 'g1' },
-    { id: 'c3', name: 'random', groupId: 'g2' }
-  ];
-
-  onlineUsers: User[] = [
-    { id: 'u1', username: 'anthony', displayName: 'Anthony', email: 'anthony@student.griffith.edu.au', role: 'user', online: true, groupIds: ['g1', 'g2'], bannedFromGroupIds: [], isSystemBanned: false },
-    { id: 'u2', username: 'maria', displayName: 'Maria', email: 'maria@student.griffith.edu.au', role: 'user', online: true, groupIds: ['g1'], bannedFromGroupIds: [], isSystemBanned: false },
-    { id: 'u3', username: 'admin', displayName: 'Admin', email: 'admin@griffith.edu.au', role: 'super_admin', online: false, groupIds: [], bannedFromGroupIds: [], isSystemBanned: false }
-  ];
-
-  messages: ChatMessage[] = [
-    { id: 'm1', channelId: 'c1', senderId: 'u2', senderName: 'Maria', text: 'has anyone started the maze solver yet?', timestamp: '10:02 AM' },
-    { id: 'm2', channelId: 'c1', senderId: 'u1', senderName: 'Anthony', text: 'yeah, working on IDA* right now', timestamp: '10:04 AM' }
-  ];
-
-  systemMessages: SystemMessage[] = [
-    { id: 's1', channelId: 'c1', type: 'join', username: 'Maria', timestamp: '10:01 AM' },
-    { id: 's2', channelId: 'c1', type: 'join', username: 'Anthony', timestamp: '10:03 AM' }
-  ];
-
-  activeChannelId = 'c1';
-  draftMessage = '';
   hasGroups = true;
+
+  allGroups: Group[] = [];
+  allChannels: Channel[] = [];
+  onlineUsers: User[] = [];
+
+  activeGroupId = '';
+  activeChannelId = '';
+
+  messages: ChatMessage[] = [];
+  systemMessages: SystemMessage[] = [];
+  draftMessage = '';
 
   constructor(
     private router: Router,
     private authService: AuthService,
-    private socketService: SocketService
+    private socketService: SocketService,
+    private groupService: GroupService,
+    private channelService: ChannelService,
+    private userService: UserService,
+    private messageService: MessageService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -62,27 +53,35 @@ export class ChatShellComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
-
     if (currentUser.role === 'super_admin') {
       this.router.navigate(['/admin']);
       return;
     }
 
     this.currentUsername = currentUser.displayName || currentUser.username;
+    this.currentUserId = currentUser.id;
     this.currentRole = currentUser.role;
     this.hasGroups = currentUser.groupIds.length > 0;
 
-    this.socketService.getSocket().on('connect', () => {
-      console.log('Socket connected:', this.socketService.getSocket().id);
+    this.groupService.getGroups().subscribe(groups => {
+      // Only the groups this user actually belongs to.
+      this.allGroups = groups.filter(g => currentUser.groupIds.includes(g.id));
+      this.cdr.markForCheck();
     });
 
-    this.socketService.getSocket().emit('joinChannel', {
-      channelId: this.activeChannelId,
-      username: this.currentUsername
+    this.channelService.getChannels().subscribe(channels => {
+      this.allChannels = channels;
+      this.cdr.markForCheck();
+    });
+
+    this.userService.getUsers().subscribe(users => {
+      this.onlineUsers = users;
+      this.cdr.markForCheck();
     });
 
     this.socketService.getSocket().on('newMessage', (message: ChatMessage) => {
       this.messages.push(message);
+      this.cdr.markForCheck();
     });
 
     this.socketService.getSocket().on('userJoined', (data: { channelId: string; username: string; timestamp: string }) => {
@@ -93,6 +92,7 @@ export class ChatShellComponent implements OnInit {
         username: data.username,
         timestamp: data.timestamp
       });
+      this.cdr.markForCheck();
     });
 
     this.socketService.getSocket().on('userLeft', (data: { channelId: string; username: string; timestamp: string }) => {
@@ -103,63 +103,105 @@ export class ChatShellComponent implements OnInit {
         username: data.username,
         timestamp: data.timestamp
       });
+      this.cdr.markForCheck();
     });
   }
 
+  // The socket is shared and outlives this component, so the
+  // listeners added in ngOnInit must be removed here. Otherwise
+  // each return to the chat page adds another set and every
+  // message shows up more than once.
+  ngOnDestroy(): void {
+    const socket = this.socketService.getSocket();
+    socket.off('newMessage');
+    socket.off('userJoined');
+    socket.off('userLeft');
+
+    if (this.activeChannelId) {
+      socket.emit('leaveChannel', {
+        channelId: this.activeChannelId,
+        username: this.currentUsername
+      });
+    }
+  }
+
+  channelsForGroup(groupId: string): Channel[] {
+    return this.allChannels.filter(c => c.groupId === groupId);
+  }
+
   get activeChannel(): Channel | undefined {
-    return this.channels.find(c => c.id === this.activeChannelId);
+    return this.allChannels.find(c => c.id === this.activeChannelId);
   }
 
   get threadItems(): (ChatMessage | SystemMessage)[] {
     const chatItems = this.messages.filter(m => m.channelId === this.activeChannelId);
     const systemItems = this.systemMessages.filter(s => s.channelId === this.activeChannelId);
-    return [...chatItems, ...systemItems].sort((a, b) => a.id.localeCompare(b.id));
+    return [...chatItems, ...systemItems].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
 
   isSystemMessage(item: ChatMessage | SystemMessage): item is SystemMessage {
     return 'type' in item;
   }
 
-  channelsForGroup(groupId: string): Channel[] {
-    return this.channels.filter(c => c.groupId === groupId);
-  }
-
   selectChannel(channelId: string): void {
-    this.socketService.getSocket().emit('leaveChannel', {
-      channelId: this.activeChannelId,
-      username: this.currentUsername
-    });
+    if (this.activeChannelId) {
+      this.socketService.getSocket().emit('leaveChannel', {
+        channelId: this.activeChannelId,
+        username: this.currentUsername
+      });
+    }
 
     this.activeChannelId = channelId;
+    this.messages = [];
+    this.systemMessages = [];
 
     this.socketService.getSocket().emit('joinChannel', {
       channelId: this.activeChannelId,
       username: this.currentUsername
     });
+
+    this.messageService.getRecentMessages(channelId).subscribe(history => {
+      // Ignore a late response if the user already switched channels.
+      if (this.activeChannelId !== channelId) {
+        return;
+      }
+      // Merge rather than overwrite, so a message that arrived live
+      // while the history request was in flight isn't lost or doubled.
+      const liveOnly = this.messages.filter(m => !history.some(h => h.id === m.id));
+      this.messages = [...history, ...liveOnly];
+      this.cdr.markForCheck();
+    });
   }
 
   sendMessage(): void {
-    if (!this.draftMessage.trim()) {
+    if (!this.draftMessage.trim() || !this.activeChannelId) {
       return;
     }
     this.socketService.getSocket().emit('sendMessage', {
       channelId: this.activeChannelId,
-      senderId: 'me',
+      senderId: this.currentUserId,
       senderName: this.currentUsername,
       text: this.draftMessage,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      // ISO format, the same as the server's join/leave notices, so
+      // threadItems can sort both kinds together correctly.
+      timestamp: new Date().toISOString()
     });
     this.draftMessage = '';
+  }
+
+  // Converts a stored timestamp into a short time for display,
+  // e.g. "01:47 PM". Older messages were saved already formatted
+  // and can't be parsed as a date, so those are shown unchanged.
+  formatTime(timestamp: string): string {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) {
+      return timestamp;
+    }
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
-  }
-
-  requestToJoin(): void {
-    // Phase 1 stub — real join-request flow (browse groups, submit
-    // request, Group Admin approval) lands in Phase 2.
-    alert('Join request sent (mock) — a Group Admin will review it in Phase 2.');
   }
 }

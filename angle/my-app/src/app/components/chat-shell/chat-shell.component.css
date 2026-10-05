@@ -147,3 +147,18 @@
 .dot.online {
   background: var(--online-green);
 }
+.request-channel-row {
+  padding: 6px 10px;
+  border-top: 1px solid #f0f2f5;
+}
+
+.room-request-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.room-request-form input {
+  padding: 4px 6px;
+  font-size: 11px;
+}

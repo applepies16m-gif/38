@@ -6,9 +6,9 @@
       <span class="badge" [ngClass]="currentRole === 'user' ? 'badge-user' : 'badge-admin'">
         {{ currentRole === 'user' ? 'member' : 'admin' }}
       </span>
-      <a *ngIf="currentRole === 'super_admin'" routerLink="/admin">Admin Panel</a>
       <a *ngIf="currentRole === 'group_admin' || currentRole === 'super_admin'" routerLink="/group-admin">Manage Group</a>
       <a routerLink="/group-request">Request Group</a>
+      <a routerLink="/browse-groups">Browse Groups</a>
       <a routerLink="/profile">My Profile</a>
       <a (click)="logout()">Log Out</a>
     </div>
@@ -18,43 +18,55 @@
   <div class="body-columns">
 
     <div class="col-left">
-  <div class="panel" *ngFor="let g of groups">
-      <div class="panel-header">{{ g.title }}</div>
-      <div class="panel-body no-pad">
-        <div
-          *ngFor="let ch of channelsForGroup(g.id)"
-          class="channel-row"
-          [class.active]="ch.id === activeChannelId"
-          (click)="selectChannel(ch.id)"
-        >
-          # {{ ch.name }}
+
+      <!-- Group switcher: pick which of your groups to view -->
+      <div class="panel group-switcher-panel" *ngIf="allGroups.length > 1">
+        <div class="panel-header">Your Groups</div>
+        <div class="panel-body no-pad">
+          <div
+            *ngFor="let g of allGroups"
+            class="channel-row"
+            [class.active]="g.id === activeGroupId"
+            (click)="activeGroupId = g.id"
+          >
+            {{ g.title }}
+          </div>
         </div>
       </div>
+
+<div class="panel" *ngFor="let g of allGroups">
+  <div class="panel-header">{{ g.title }}</div>
+  <div class="panel-body no-pad">
+    <div
+      *ngFor="let ch of channelsForGroup(g.id)"
+      class="channel-row"
+      [class.active]="ch.id === activeChannelId"
+      (click)="selectChannel(ch.id)"
+    >
+      # {{ ch.name }}
     </div>
+  </div>
 </div>
+
+    </div>
+
     <div class="col-center panel">
       <div class="panel-header">
         # {{ activeChannel?.name || 'select a channel' }}
       </div>
       <div class="thread">
-  <ng-container *ngFor="let item of threadItems">
-
-    <!-- system message: join/leave, dimmer inline text -->
-    <div class="system-row" *ngIf="isSystemMessage(item)">
-      {{ item.username }} has {{ item.type === 'join' ? 'joined' : 'left' }} the room &middot; {{ item.timestamp }}
-    </div>
-
-    <!-- regular chat message -->
-    <div class="msg-row" *ngIf="!isSystemMessage(item)">
-      <span class="msg-sender">{{ item.senderName }}</span>
-      <span class="msg-time">{{ item.timestamp }}</span>
-      <a class="report-link" title="Report user (not functional)">report</a>
-      <div class="msg-text">{{ item.text }}</div>
-      <img *ngIf="item.imageUrl" [src]="item.imageUrl" class="msg-image" />
-    </div>
-
-  </ng-container>
-</div>
+        <ng-container *ngFor="let item of threadItems">
+          <div class="system-row" *ngIf="isSystemMessage(item)">
+            {{ item.username }} has {{ item.type === 'join' ? 'joined' : 'left' }} the room &middot; {{ formatTime(item.timestamp) }}
+          </div>
+          <div class="msg-row" *ngIf="!isSystemMessage(item)">
+            <span class="msg-sender">{{ item.senderName }}</span>
+            <span class="msg-time">{{ formatTime(item.timestamp) }}</span>
+            <div class="msg-text">{{ item.text }}</div>
+            <img *ngIf="item.imageUrl" [src]="item.imageUrl" class="msg-image" />
+          </div>
+        </ng-container>
+      </div>
       <div class="composer">
         <input
           type="text"
