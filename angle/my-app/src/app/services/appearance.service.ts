@@ -24,7 +24,7 @@ const COLOUR_SHADES: { variable: string; saturation: number; lightness: number }
   { variable: '--chrome-blue', saturation: 44, lightness: 41 },
   { variable: '--chrome-blue-dark', saturation: 44, lightness: 31 },
   { variable: '--chrome-blue-light', saturation: 40, lightness: 48 },
-  { variable: '--chrome-blue-lighter', saturation: 33, lightness: 52 },
+  { variable: '--chrome-blue-lighter', saturation: 33, lightness: 50 },
   { variable: '--chrome-blue-mid', saturation: 34, lightness: 46 },
   { variable: '--panel-border', saturation: 38, lightness: 79 }
 ];
@@ -56,10 +56,13 @@ function relativeLuminance(hue: number, saturation: number, lightness: number): 
 // that white text on the main colour stays readable. It is 0 for
 // the standard blue and for most hues.
 export function darkeningForHue(hue: number): number {
-  const main = COLOUR_SHADES[0];
+  // The check is made on the lightest shade that white text sits on
+  // (the top of a primary button). If that one is readable, the
+  // darker shades are too.
+  const lightest = COLOUR_SHADES.find(shade => shade.variable === '--chrome-blue-lighter') || COLOUR_SHADES[0];
   let darkening = 0;
-  while (darkening < main.lightness &&
-         1.05 / (relativeLuminance(hue, main.saturation, main.lightness - darkening) + 0.05) < MIN_CONTRAST_WITH_WHITE) {
+  while (darkening < lightest.lightness &&
+         1.05 / (relativeLuminance(hue, lightest.saturation, lightest.lightness - darkening) + 0.05) < MIN_CONTRAST_WITH_WHITE) {
     darkening = darkening + 1;
   }
   return darkening;

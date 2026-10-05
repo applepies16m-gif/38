@@ -21,7 +21,7 @@
 }
 
 .back-link {
-  color: #dbe4f5;
+  color: #ffffff;
   font-size: 11px;
 }
 
@@ -70,4 +70,16 @@
   color: var(--text-muted);
   font-size: 11px;
   margin: 0;
+}
+
+/* The text search sits at the end of the filter row and takes
+   whatever width is left. */
+.search-label {
+  flex: 1;
+  min-width: 180px;
+}
+
+.search-label input {
+  width: 100%;
+  box-sizing: border-box;
 }

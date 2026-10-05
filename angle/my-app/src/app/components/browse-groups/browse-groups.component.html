@@ -6,25 +6,26 @@
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
 
-  <div class="browse-body">
+  <div class="browse-body" role="main">
 
     <div class="panel">
       <div class="panel-body search-row">
-        <input type="text" placeholder="Search groups by name..." [(ngModel)]="searchTerm" />
+        <input type="text" placeholder="Search groups by name or description..." aria-label="Search groups by name or description"
+          [ngModel]="groupList.searchTerm()" (ngModelChange)="groupList.search($event)" />
       </div>
     </div>
 
-    <div *ngIf="errorMsg" class="error-msg">{{ errorMsg }}</div>
+    <div *ngIf="errorMsg" class="error-msg" role="alert">{{ errorMsg }}</div>
 
-    <div class="panel" *ngFor="let g of filteredGroups">
-      <div class="panel-header">{{ g.title }}</div>
+    <div class="panel" *ngFor="let g of groupList.pageItems()">
+      <div class="panel-header" role="heading" aria-level="2">{{ g.title }}</div>
       <div class="panel-body group-row" *ngIf="joinStatus(g) as status">
         <div class="group-info">
           <p class="group-desc">{{ g.description }}</p>
           <span class="group-meta" *ngIf="g.ageLimit > 0">Age limit: {{ g.ageLimit }}+</span>
           <p class="group-meta" *ngIf="status.reason">{{ status.reason }}</p>
         </div>
-        <button
+        <button type="button"
           class="btn btn-primary"
           [disabled]="!status.canRequest"
           (click)="requestToJoin(g)"
@@ -34,7 +35,13 @@
       </div>
     </div>
 
-    <p class="empty-text" *ngIf="filteredGroups.length === 0">No groups match your search.</p>
+    <p class="empty-text" *ngIf="groupList.filtered().length === 0">No groups match your search.</p>
+
+    <div class="pager" *ngIf="groupList.pageCount() > 1">
+      <button type="button" class="btn" [disabled]="groupList.currentPage() === 1" (click)="groupList.previous()">Previous</button>
+      <span>Page {{ groupList.currentPage() }} of {{ groupList.pageCount() }} ({{ groupList.filtered().length }} groups)</span>
+      <button type="button" class="btn" [disabled]="groupList.currentPage() === groupList.pageCount()" (click)="groupList.next()">Next</button>
+    </div>
 
   </div>
 </div>

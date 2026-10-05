@@ -11,6 +11,7 @@ import { ReportService } from '../../services/report.service';
 import { Report } from '../../models/report.model';
 import { NotificationService } from '../../services/notification.service';
 import { AppNotification } from '../../models/notification.model';
+import { PagedList } from '../../utils/paged-list';
 import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of-birth';
 
 @Component({
@@ -21,7 +22,22 @@ import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of
   styleUrl: './admin-panel.component.css'
 })
 export class AdminPanelComponent implements OnInit {
-  users: User[] = [];
+  // The Users table is searchable and shown a page at a time.
+  // Assigning to "users" keeps the table's list in step, so the
+  // rest of this class can go on using a plain array.
+  userList = new PagedList<User>(
+    (user, term) => user.username.toLowerCase().includes(term) ||
+      (user.displayName || '').toLowerCase().includes(term) || user.role.includes(term),
+    10
+  );
+  private everyUser: User[] = [];
+  get users(): User[] {
+    return this.everyUser;
+  }
+  set users(value: User[]) {
+    this.everyUser = value;
+    this.userList.setItems(value);
+  }
   groups: Group[] = [];
 
   groupRequests: GroupCreationRequest[] = [];
@@ -272,7 +288,7 @@ export class AdminPanelComponent implements OnInit {
     }
     this.userService.createUser(newUser).subscribe({
       next: (createdUser) => {
-        this.users.push(createdUser);
+        this.users = [...this.users, createdUser];
         this.newUsername = '';
         this.newFirstName = '';
         this.newLastName = '';

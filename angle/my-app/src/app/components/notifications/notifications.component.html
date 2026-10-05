@@ -6,13 +6,13 @@
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
 
-  <div class="page-body">
+  <div class="page-body" role="main">
     <div class="panel">
-      <div class="panel-header">From the Super Admin</div>
+      <div class="panel-header" role="heading" aria-level="2">From the Super Admin</div>
       <div class="panel-body">
         <p class="note">These are announcements. You can't reply to them.</p>
 
-        <div class="notification" *ngFor="let n of notifications">
+        <div class="notification" *ngFor="let n of notifications()">
           <div class="when">
             {{ formatDate(n.createdAt) }}
             <span class="badge" [ngClass]="n.recipientId ? 'badge-admin' : 'badge-user'">{{ n.recipientId ? 'to you' : 'to everyone' }}</span>
@@ -20,7 +20,7 @@
           <div class="message">{{ n.message }}</div>
         </div>
 
-        <p class="note" *ngIf="loaded && notifications.length === 0">No notifications yet.</p>
+        <p class="note" *ngIf="loaded() && notifications().length === 0">No notifications yet.</p>
       </div>
     </div>
   </div>

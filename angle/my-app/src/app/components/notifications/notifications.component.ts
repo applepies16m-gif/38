@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -15,14 +15,15 @@ import { AppNotification } from '../../models/notification.model';
   styleUrl: './notifications.component.css'
 })
 export class NotificationsComponent implements OnInit {
-  notifications: AppNotification[] = [];
-  loaded = false;
+  // Signals: the template reads them, so it redraws by itself when
+  // the server's answer is put into them.
+  notifications = signal<AppNotification[]>([]);
+  loaded = signal(false);
 
   constructor(
     private router: Router,
     private authService: AuthService,
-    private notificationService: NotificationService,
-    private cdr: ChangeDetectorRef
+    private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -37,9 +38,8 @@ export class NotificationsComponent implements OnInit {
     }
 
     this.notificationService.getNotificationsFor(currentUser.id).subscribe(notifications => {
-      this.notifications = notifications;
-      this.loaded = true;
-      this.cdr.markForCheck();
+      this.notifications.set(notifications);
+      this.loaded.set(true);
     });
     // Opening this page counts as reading them.
     this.notificationService.markAllRead(currentUser.id).subscribe();

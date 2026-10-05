@@ -26,7 +26,7 @@
 }
 
 .top-bar-right a {
-  color: #dbe4f5;
+  color: #ffffff;
 }
 
 .top-bar-right a:hover {
@@ -201,4 +201,69 @@
 .room-request-form input {
   padding: 4px 6px;
   font-size: 11px;
+}
+/* ---- Accessibility and narrower screens ---- */
+
+/* "Log Out" in the top bar is a button (it does something, it
+   doesn't go to a page), styled to match the links beside it. */
+.top-bar-right .link-button {
+  color: #ffffff;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.top-bar-right a:hover,
+.top-bar-right .link-button:hover {
+  text-decoration: underline;
+}
+
+/* A channel in the list is a button, so it can be chosen with the
+   keyboard. These rules take away the browser's button look and
+   keep the row's own. */
+button.channel-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid #f0f2f5;
+  font-family: inherit;
+  color: inherit;
+}
+
+/* The outline of a focused row would be cut off by the panel's
+   edge, so it is drawn just inside the row instead. */
+button.channel-row:focus-visible {
+  outline-offset: -3px;
+  box-shadow: none;
+}
+
+/* On a tablet the three columns no longer fit side by side, so
+   they stack: channels, then the conversation, then who is online. */
+@media (max-width: 900px) {
+  .body-columns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .col-left,
+  .col-right {
+    width: auto;
+  }
+}
+
+/* ---- Animations (the keyframes are in styles.css) ---- */
+
+/* A new message or join/leave notice eases into the thread, so it
+   is clear which line just arrived. */
+.msg-row,
+.system-row {
+  animation: ease-in 0.2s ease-out;
+}
+
+/* The unread count swells twice when it appears or changes. */
+.unread-count {
+  display: inline-block;
+  font-weight: bold;
+  animation: pulse 0.6s ease-in-out 2;
 }

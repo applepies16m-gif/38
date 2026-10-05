@@ -1,4 +1,5 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, signal } from '@angular/core';
+import { PagedList } from '../../utils/paged-list';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -42,9 +43,18 @@ const ACTION_TYPES: { value: string; label: string }[] = [
   styleUrl: './audit-log.component.css'
 })
 export class AuditLogComponent implements OnInit {
-  entries: AuditEntry[] = [];
+  // The entries the server returned for the current filters. This
+  // list can be searched by text and is shown a page at a time;
+  // see PagedList for how the signals inside it work.
+  entryList = new PagedList<AuditEntry>(
+    (entry, term) => entry.summary.toLowerCase().includes(term) ||
+      entry.actorName.toLowerCase().includes(term) || this.typeLabel(entry.type).toLowerCase().includes(term),
+    20
+  );
   actionTypes = ACTION_TYPES;
-  loaded = false;
+  // A signal, so the "nothing matches" message appears as soon as
+  // the server has answered.
+  loaded = signal(false);
 
   // The three filters. Empty means "don't filter on this".
   filterType = '';
@@ -75,9 +85,9 @@ export class AuditLogComponent implements OnInit {
   // The filtering is done by the server's database query.
   loadEntries(): void {
     this.notificationService.getAuditLog(this.filterType, this.filterFrom, this.filterTo).subscribe(entries => {
-      this.entries = entries;
-      this.loaded = true;
-      this.cdr.markForCheck();
+      this.entryList.setItems(entries);
+      this.entryList.page.set(1);
+      this.loaded.set(true);
     });
   }
 
@@ -86,6 +96,7 @@ export class AuditLogComponent implements OnInit {
     this.filterType = '';
     this.filterFrom = '';
     this.filterTo = '';
+    this.entryList.search('');
     this.loadEntries();
   }
 

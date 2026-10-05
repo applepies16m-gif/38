@@ -6,10 +6,10 @@
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
 
-  <div class="profile-body">
+  <div class="profile-body" role="main">
 
     <div class="panel">
-      <div class="panel-header">Profile Picture</div>
+      <div class="panel-header" role="heading" aria-level="2">Profile Picture</div>
       <div class="panel-body pic-row">
         <img
           [src]="profilePicUrl || 'https://placehold.co/80x80/3b5998/ffffff?text=?'"
@@ -17,63 +17,63 @@
           class="profile-pic"
         />
         <div>
-          <input type="file" accept="image/png, image/jpeg, image/gif" (change)="onPictureSelected($event)" />
+          <input type="file" aria-label="Choose a profile picture" accept="image/png, image/jpeg, image/gif" (change)="onPictureSelected($event)" />
           <p class="helper-text">PNG, JPEG or GIF, up to 2 MB. Saved as soon as you choose it.</p>
-          <div *ngIf="pictureError" class="password-msg">{{ pictureError }}</div>
-          <div *ngIf="pictureMsg" class="success-text">{{ pictureMsg }}</div>
+          <div *ngIf="pictureError" class="password-msg" role="alert">{{ pictureError }}</div>
+          <div *ngIf="pictureMsg" class="success-text" role="status">{{ pictureMsg }}</div>
         </div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Account Details</div>
+      <div class="panel-header" role="heading" aria-level="2">Account Details</div>
       <div class="panel-body form-grid">
 
-        <label>Username</label>
-        <input type="text" [(ngModel)]="username" />
+        <label for="profile-username">Username</label>
+        <input id="profile-username" type="text" [(ngModel)]="username" />
 
-        <label>Display Name</label>
-        <input type="text" [(ngModel)]="displayName" />
+        <label for="profile-displayname">Display Name</label>
+        <input id="profile-displayname" type="text" [(ngModel)]="displayName" />
 
-        <label>Email (cannot be changed)</label>
-        <input type="text" [value]="email" disabled />
+        <label for="profile-email-cannot-be-changed">Email (cannot be changed)</label>
+        <input id="profile-email-cannot-be-changed" type="text" [value]="email" disabled />
 
-        <label>Date of Birth{{ dateOfBirthLocked ? ' (cannot be changed)' : '' }}</label>
-        <input type="date" [(ngModel)]="dateOfBirth" [disabled]="dateOfBirthLocked" />
+        <label for="profile-dateofbirth">Date of Birth{{ dateOfBirthLocked ? ' (cannot be changed)' : '' }}</label>
+        <input id="profile-dateofbirth" type="date" [(ngModel)]="dateOfBirth" [disabled]="dateOfBirthLocked" />
         <span class="hint-inline" *ngIf="!dateOfBirthLocked">Can only be set once, so check it before saving.</span>
 
-        <label>About Me</label>
-        <textarea [(ngModel)]="bio" rows="3" placeholder="Say a little about yourself..."></textarea>
+        <label for="profile-bio">About Me</label>
+        <textarea id="profile-bio" [(ngModel)]="bio" rows="3" placeholder="Say a little about yourself..."></textarea>
 
-        <div *ngIf="profileError" class="password-msg">{{ profileError }}</div>
-        <div *ngIf="saved" class="success-text">Profile saved.</div>
+        <div *ngIf="profileError" class="password-msg" role="alert">{{ profileError }}</div>
+        <div *ngIf="saved" class="success-text" role="status">Profile saved.</div>
 
-        <button class="btn btn-primary" (click)="saveProfile()">Save Changes</button>
+        <button type="button" class="btn btn-primary" (click)="saveProfile()">Save Changes</button>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Change Password</div>
+      <div class="panel-header" role="heading" aria-level="2">Change Password</div>
       <div class="panel-body form-grid">
 
-        <label>Current Password</label>
-        <input type="password" [(ngModel)]="passwordCurrent" />
+        <label for="profile-passwordcurrent">Current Password</label>
+        <input id="profile-passwordcurrent" type="password" [(ngModel)]="passwordCurrent" />
 
-        <label>New Password</label>
-        <input type="password" [(ngModel)]="passwordNew" />
+        <label for="profile-passwordnew">New Password</label>
+        <input id="profile-passwordnew" type="password" [(ngModel)]="passwordNew" />
         <span class="hint-inline">min 8 characters, 1 uppercase letter</span>
 
-        <label>Confirm New Password</label>
-        <input type="password" [(ngModel)]="passwordConfirm" />
+        <label for="profile-passwordconfirm">Confirm New Password</label>
+        <input id="profile-passwordconfirm" type="password" [(ngModel)]="passwordConfirm" />
 
-        <div *ngIf="passwordMsg" class="password-msg">{{ passwordMsg }}</div>
+        <div *ngIf="passwordMsg" class="password-msg" role="alert">{{ passwordMsg }}</div>
 
-        <button class="btn" (click)="changePassword()">Update Password</button>
+        <button type="button" class="btn" (click)="changePassword()">Update Password</button>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Appearance</div>
+      <div class="panel-header" role="heading" aria-level="2">Appearance</div>
       <div class="panel-body form-grid">
         <p class="helper-text">
           Make the site look the way you like. Move a slider to preview it, then save.
@@ -103,35 +103,35 @@
           (ngModelChange)="previewAppearance()"
         />
 
-        <div *ngIf="appearanceMsg" class="success-text">{{ appearanceMsg }}</div>
+        <div *ngIf="appearanceMsg" class="success-text" role="status">{{ appearanceMsg }}</div>
 
         <div>
-          <button class="btn btn-primary" (click)="saveAppearance()">Save Appearance</button>
-          <button class="btn" (click)="resetAppearance()">Reset to Default</button>
+          <button type="button" class="btn btn-primary" (click)="saveAppearance()">Save Appearance</button>
+          <button type="button" class="btn" (click)="resetAppearance()">Reset to Default</button>
         </div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Blocked Users</div>
+      <div class="panel-header" role="heading" aria-level="2">Blocked Users</div>
       <div class="panel-body">
         <p class="helper-text">You don't see messages or join/leave notices from these users. Block someone from the "block" link beside their message in chat.</p>
         <p class="helper-text" *ngIf="blockedUsers.length === 0">You haven't blocked anyone.</p>
         <div *ngFor="let b of blockedUsers">
-          {{ b.name }} &middot; <a (click)="unblock(b.id)">unblock</a>
+          {{ b.name }} &middot; <button type="button" class="link-button" (click)="unblock(b.id)">unblock</button>
         </div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Delete My Account</div>
+      <div class="panel-header" role="heading" aria-level="2">Delete My Account</div>
       <div class="panel-body">
         <p class="helper-text">
           This permanently removes your account. If you are the only admin of a
           group, another admin has to be appointed for it first.
         </p>
-        <div *ngIf="deleteError" class="password-msg">{{ deleteError }}</div>
-        <button class="btn" (click)="deleteMyAccount()">Delete My Account</button>
+        <div *ngIf="deleteError" class="password-msg" role="alert">{{ deleteError }}</div>
+        <button type="button" class="btn" (click)="deleteMyAccount()">Delete My Account</button>
       </div>
     </div>
 

@@ -2,6 +2,8 @@
 //
 //   node seed.js --yes                      (random password, printed once)
 //   node seed.js --yes --password=Example1  (your own password for every demo account)
+//   node seed.js --yes --large              (also adds 150 users, 40 groups and 120 audit
+//                                            entries, to try out search and paging)
 //
 // It DELETES every user, group, channel, message and request, so
 // it will not run without --yes, and it writes a backup to
@@ -17,7 +19,7 @@ const { hashPassword, backupCollections } = require('./passwords');
 // Every collection the app uses. All of them are emptied.
 const COLLECTIONS = ['users', 'groups', 'channels', 'messages', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests', 'reports', 'notifications', 'auditLog'];
 
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 
 // The demo accounts. "key" is only used below to link groups to
 // their admins and members.
@@ -129,7 +131,46 @@ async function seed() {
     }
   }
 
-  console.log(`Removed ${removedImages} uploaded image file(s).`);
+  // --large adds a lot of extra data, to show that the searchable,
+  // paged lists (users, groups, audit log) cope with long lists.
+  let extra = '';
+  if (readOption('large') === true) {
+    const adminId = userIds['groupadmin'].toString();
+    const manyUsers = [];
+    for (let n = 1; n <= 150; n++) {
+      const number = String(n).padStart(3, '0');
+      manyUsers.push({
+        username: `user${number}`, firstName: 'Test', lastName: `User ${number}`, displayName: `Test User ${number}`,
+        email: `user${number}@example.com`, dateOfBirth: '1999-01-01', role: 'user', password: passwordHash,
+        online: false, groupIds: [], bannedFromGroupIds: [], isSystemBanned: false
+      });
+    }
+    await db.collection('users').insertMany(manyUsers);
+
+    for (let n = 1; n <= 40; n++) {
+      const result = await db.collection('groups').insertOne({
+        title: `Club ${String(n).padStart(2, '0')}`, description: `Sample group number ${n} for testing long lists.`,
+        ageLimit: n % 5 === 0 ? 18 : 0, adminIds: [adminId], channelIds: []
+      });
+      const groupId = result.insertedId.toString();
+      await db.collection('channels').insertOne({ name: 'general', groupId });
+      await db.collection('users').updateOne({ _id: userIds['groupadmin'] }, { $addToSet: { groupIds: groupId } });
+    }
+
+    const manyEntries = [];
+    // Oldest first, the order real entries are written in.
+    for (let n = 120; n >= 1; n--) {
+      manyEntries.push({
+        type: ['group_updated', 'join_request_approved', 'member_banned', 'channel_created'][n % 4],
+        summary: `Sample audit entry number ${n}`, actorId: adminId, actorName: 'Grace Admin', actorRole: 'group_admin',
+        createdAt: new Date(Date.now() - n * 3600 * 1000).toISOString()
+      });
+    }
+    await db.collection('auditLog').insertMany(manyEntries);
+    extra = ' Large data set added: 150 more users (user001 to user150), 40 more groups and 120 audit entries.';
+  }
+
+  console.log(`Removed ${removedImages} uploaded image file(s).${extra}`);
   console.log(`Created ${DEMO_USERS.length} users and ${DEMO_GROUPS.length} groups:`);
   for (const demoUser of DEMO_USERS) {
     console.log(`  ${demoUser.username.padEnd(12)} ${demoUser.role}`);

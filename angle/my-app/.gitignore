@@ -49,3 +49,7 @@ server/uploads/
 
 # Database backups written by the server and seed script (may hold account data)
 server/backups/
+
+# End-to-end test output
+/test-results/
+/playwright-report/

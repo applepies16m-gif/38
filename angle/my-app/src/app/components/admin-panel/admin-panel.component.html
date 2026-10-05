@@ -4,14 +4,18 @@
     <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
     <span class="admin-title">Admin Control Panel</span>
     <a routerLink="/audit-log" class="back-link">Audit Log</a>
-    <a (click)="logout()" class="back-link">Log Out</a>
+    <button type="button" (click)="logout()" class="link-button back-link">Log Out</button>
   </div>
 
-  <div class="admin-body">
+  <div class="admin-body" role="main">
 
     <div class="panel">
-      <div class="panel-header">Users</div>
+      <div class="panel-header" role="heading" aria-level="2">Users ({{ userList.filtered().length }})</div>
       <div class="panel-body">
+        <div class="form-row" style="margin-bottom: 8px;">
+          <input type="text" placeholder="Search users by username, name or role" aria-label="Search users by username, name or role"
+            [ngModel]="userList.searchTerm()" (ngModelChange)="userList.search($event)" />
+        </div>
         <table class="list-table">
           <thead>
             <tr>
@@ -24,7 +28,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let u of users">
+            <tr *ngFor="let u of userList.pageItems()">
               <td>{{ u.username }}</td>
               <td>{{ u.displayName }}</td>
               <td>
@@ -40,38 +44,44 @@
                 <span class="badge badge-admin" *ngIf="u.isSystemBanned">banned</span>
               </td>
               <td>
-                <a (click)="removeUser(u)">remove</a>
+                <button type="button" class="link-button" (click)="removeUser(u)">remove</button>
                 <ng-container *ngIf="u.role !== 'super_admin'">
                   &middot;
-                  <a *ngIf="!u.isSystemBanned" (click)="banFromSystem(u)">ban from system</a>
-                  <a *ngIf="u.isSystemBanned" (click)="unbanFromSystem(u)">unban</a>
+                  <button type="button" class="link-button" *ngIf="!u.isSystemBanned" (click)="banFromSystem(u)">ban from system</button>
+                  <button type="button" class="link-button" *ngIf="u.isSystemBanned" (click)="unbanFromSystem(u)">unban</button>
                 </ng-container>
               </td>
             </tr>
           </tbody>
         </table>
+        <div class="pager" *ngIf="userList.pageCount() > 1">
+          <button type="button" class="btn" [disabled]="userList.currentPage() === 1" (click)="userList.previous()">Previous</button>
+          <span>Page {{ userList.currentPage() }} of {{ userList.pageCount() }}</span>
+          <button type="button" class="btn" [disabled]="userList.currentPage() === userList.pageCount()" (click)="userList.next()">Next</button>
+        </div>
+        <p class="empty-text" *ngIf="userList.filtered().length === 0">No users match your search.</p>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Request New User</div>
+      <div class="panel-header" role="heading" aria-level="2">Request New User</div>
       <div class="panel-body form-row">
-        <input type="text" placeholder="Username" [(ngModel)]="newUsername" />
-        <input type="text" placeholder="First name" [(ngModel)]="newFirstName" />
-        <input type="text" placeholder="Last name" [(ngModel)]="newLastName" />
-        <input type="text" placeholder="Email" [(ngModel)]="newEmail" />
-        <input type="text" placeholder="Display name (optional)" [(ngModel)]="newDisplayName" />
-        <input type="password" placeholder="Password (8+ characters, 1 uppercase)" [(ngModel)]="newPassword" />
+        <input type="text" placeholder="Username" [(ngModel)]="newUsername" aria-label="Username" />
+        <input type="text" placeholder="First name" [(ngModel)]="newFirstName" aria-label="First name" />
+        <input type="text" placeholder="Last name" [(ngModel)]="newLastName" aria-label="Last name" />
+        <input type="text" placeholder="Email" [(ngModel)]="newEmail" aria-label="Email" />
+        <input type="text" placeholder="Display name (optional)" [(ngModel)]="newDisplayName" aria-label="Display name (optional)" />
+        <input type="password" placeholder="Password (8+ characters, 1 uppercase)" [(ngModel)]="newPassword" aria-label="Password (8+ characters, 1 uppercase)" />
         <label>
           Date of birth (optional)
           <input type="date" [(ngModel)]="newDateOfBirth" />
         </label>
-        <button class="btn btn-primary" (click)="requestNewUser()">Submit Request</button>
+        <button type="button" class="btn btn-primary" (click)="requestNewUser()">Submit Request</button>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Groups & Channels</div>
+      <div class="panel-header" role="heading" aria-level="2">Groups & Channels</div>
       <div class="panel-body">
         <table class="list-table">
           <thead>
@@ -89,7 +99,7 @@
         </table>
 
         <div class="form-row" style="margin-top: 8px;">
-          <input type="text" placeholder="New group name" maxlength="30" [(ngModel)]="newGroupName" />
+          <input type="text" placeholder="New group name" maxlength="30" [(ngModel)]="newGroupName" aria-label="New group name" />
           <label>
             Group admin
             <select [(ngModel)]="newGroupAdminId">
@@ -97,12 +107,12 @@
               <option *ngFor="let u of possibleGroupAdmins" [value]="u.id">{{ u.displayName }} ({{ u.username }})</option>
             </select>
           </label>
-          <button class="btn" (click)="createGroup()">Create Group</button>
+          <button type="button" class="btn" (click)="createGroup()">Create Group</button>
         </div>
       </div>
     </div>
     <div class="panel">
-  <div class="panel-header">Pending Group Requests</div>
+  <div class="panel-header" role="heading" aria-level="2">Pending Group Requests</div>
   <div class="panel-body">
     <table class="list-table" *ngIf="groupRequests.length; else noGroupReq">
       <thead>
@@ -120,8 +130,8 @@
             <span *ngIf="gr.rejectionReason" class="reason-text"> — {{ gr.rejectionReason }}</span>
           </td>
           <td *ngIf="gr.status === 'pending'">
-            <a (click)="approveGroupRequest(gr)">approve</a> &middot;
-            <a (click)="rejectGroupRequest(gr)">reject</a>
+            <button type="button" class="link-button" (click)="approveGroupRequest(gr)">approve</button> &middot;
+            <button type="button" class="link-button" (click)="rejectGroupRequest(gr)">reject</button>
           </td>
           <td *ngIf="gr.status !== 'pending'"></td>
         </tr>
@@ -132,7 +142,7 @@
 </div>
 
     <div class="panel">
-      <div class="panel-header">Send a Notification</div>
+      <div class="panel-header" role="heading" aria-level="2">Send a Notification</div>
       <div class="panel-body">
         <p class="reason-text">A one-way announcement. Users read it on their Notifications page and can't reply.</p>
         <div class="form-row">
@@ -143,8 +153,8 @@
               <option *ngFor="let u of possibleGroupAdmins" [value]="u.id">{{ u.displayName }} ({{ u.username }})</option>
             </select>
           </label>
-          <input type="text" placeholder="Message (up to 500 characters)" maxlength="500" [(ngModel)]="notificationMessage" />
-          <button class="btn btn-primary" (click)="sendNotification()">Send</button>
+          <input type="text" placeholder="Message (up to 500 characters)" maxlength="500" [(ngModel)]="notificationMessage" aria-label="Message (up to 500 characters)" />
+          <button type="button" class="btn btn-primary" (click)="sendNotification()">Send</button>
         </div>
         <table class="list-table" *ngIf="sentNotifications.length" style="margin-top: 8px;">
           <thead>
@@ -162,7 +172,7 @@
     </div>
 
     <div class="panel">
-      <div class="panel-header">Group Admin Removal Requests</div>
+      <div class="panel-header" role="heading" aria-level="2">Group Admin Removal Requests</div>
       <div class="panel-body">
         <p class="reason-text">A Group Admin can only be removed or banned when another admin of the same group asks and you approve it here.</p>
         <table class="list-table" *ngIf="adminRemovalRequests.length; else noAdminRemoval">
@@ -177,8 +187,8 @@
               <td>{{ userName(ar.requestedBy) }}</td>
               <td>{{ ar.reason }}</td>
               <td>
-                <a (click)="approveAdminRemoval(ar)">approve</a> &middot;
-                <a (click)="rejectAdminRemoval(ar)">reject</a>
+                <button type="button" class="link-button" (click)="approveAdminRemoval(ar)">approve</button> &middot;
+                <button type="button" class="link-button" (click)="rejectAdminRemoval(ar)">reject</button>
               </td>
             </tr>
           </tbody>
@@ -188,7 +198,7 @@
     </div>
 
     <div class="panel">
-      <div class="panel-header">User Reports</div>
+      <div class="panel-header" role="heading" aria-level="2">User Reports</div>
       <div class="panel-body">
         <table class="list-table" *ngIf="reports.length; else noReports">
           <thead>
@@ -206,9 +216,9 @@
                 <span *ngIf="rp.decisionNote" class="reason-text"> — {{ rp.decisionNote }}</span>
               </td>
               <td *ngIf="rp.status === 'open'">
-                <a (click)="decideReport(rp, 'resolved')">resolve</a> &middot;
-                <a (click)="decideReport(rp, 'dismissed')">dismiss</a> &middot;
-                <a (click)="banReportedUser(rp)">ban user</a>
+                <button type="button" class="link-button" (click)="decideReport(rp, 'resolved')">resolve</button> &middot;
+                <button type="button" class="link-button" (click)="decideReport(rp, 'dismissed')">dismiss</button> &middot;
+                <button type="button" class="link-button" (click)="banReportedUser(rp)">ban user</button>
               </td>
               <td *ngIf="rp.status !== 'open'"></td>
             </tr>

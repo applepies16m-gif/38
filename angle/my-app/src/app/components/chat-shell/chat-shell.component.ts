@@ -44,7 +44,6 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   allUsers: User[] = [];
   private onlineUserIds = new Set<string>();
 
-  activeGroupId = '';
   activeChannelId = '';
 
   messages: ChatMessage[] = [];

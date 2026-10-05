@@ -6,10 +6,10 @@
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
 
-  <div class="gr-body">
+  <div class="gr-body" role="main">
 
     <div class="panel">
-      <div class="panel-header">New Group Request</div>
+      <div class="panel-header" role="heading" aria-level="2">New Group Request</div>
       <div class="panel-body form-grid">
 
         <p class="helper-text">
@@ -17,24 +17,24 @@
           If approved, you'll automatically become that group's admin.
         </p>
 
-        <label>Group Title ({{ titleCharsLeft }} characters left)</label>
-        <input type="text" [(ngModel)]="proposedTitle" maxlength="30" placeholder="e.g. Board Games Club" />
+        <label for="group-request-proposedtitle">Group Title ({{ titleCharsLeft }} characters left)</label>
+        <input id="group-request-proposedtitle" type="text" [(ngModel)]="proposedTitle" maxlength="30" placeholder="e.g. Board Games Club" />
 
-        <label>Description ({{ descriptionCharsLeft }} characters left)</label>
-        <textarea [(ngModel)]="proposedDescription" maxlength="250" rows="3" placeholder="What's this group about?"></textarea>
+        <label for="group-request-proposeddescription">Description ({{ descriptionCharsLeft }} characters left)</label>
+        <textarea id="group-request-proposeddescription" [(ngModel)]="proposedDescription" maxlength="250" rows="3" placeholder="What's this group about?"></textarea>
 
-        <label>Minimum Age (0 = no limit)</label>
-        <input type="number" min="0" max="120" step="1" [(ngModel)]="proposedAgeLimit" />
+        <label for="group-request-proposedagelimit">Minimum Age (0 = no limit)</label>
+        <input id="group-request-proposedagelimit" type="number" min="0" max="120" step="1" [(ngModel)]="proposedAgeLimit" />
 
-        <div *ngIf="errorMsg" class="reason-text">{{ errorMsg }}</div>
-        <div *ngIf="submitted" class="success-text">Request submitted — you'll be notified once it's reviewed.</div>
+        <div *ngIf="errorMsg" class="reason-text" role="alert">{{ errorMsg }}</div>
+        <div *ngIf="submitted" class="success-text" role="status">Request submitted — you'll be notified once it's reviewed.</div>
 
-        <button class="btn btn-primary" (click)="submitRequest()">Submit Request</button>
+        <button type="button" class="btn btn-primary" (click)="submitRequest()">Submit Request</button>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Your Requests</div>
+      <div class="panel-header" role="heading" aria-level="2">Your Requests</div>
       <div class="panel-body">
         <table class="list-table" *ngIf="myRequests.length; else noRequests">
           <thead>

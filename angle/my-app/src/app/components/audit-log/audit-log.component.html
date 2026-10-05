@@ -6,10 +6,10 @@
     <a routerLink="/admin" class="back-link">&larr; Back to Admin Panel</a>
   </div>
 
-  <div class="page-body">
+  <div class="page-body" role="main">
 
     <div class="panel">
-      <div class="panel-header">Filter</div>
+      <div class="panel-header" role="heading" aria-level="2">Filter</div>
       <div class="panel-body filter-row">
         <label>
           Action
@@ -26,20 +26,25 @@
           To
           <input type="date" [(ngModel)]="filterTo" />
         </label>
-        <button class="btn btn-primary" (click)="loadEntries()">Apply</button>
-        <button class="btn" (click)="clearFilters()">Clear</button>
+        <button type="button" class="btn btn-primary" (click)="loadEntries()">Apply</button>
+        <button type="button" class="btn" (click)="clearFilters()">Clear</button>
+        <label class="search-label">
+          Search these results
+          <input type="text" placeholder="a name, a group, a word"
+            [ngModel]="entryList.searchTerm()" (ngModelChange)="entryList.search($event)" />
+        </label>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-header">Admin Actions ({{ entries.length }})</div>
+      <div class="panel-header" role="heading" aria-level="2">Admin Actions ({{ entryList.filtered().length }})</div>
       <div class="panel-body">
-        <table class="list-table" *ngIf="entries.length; else noEntries">
+        <table class="list-table" *ngIf="entryList.filtered().length; else noEntries">
           <thead>
             <tr><th>When</th><th>Who</th><th>Action</th><th>Details</th></tr>
           </thead>
           <tbody>
-            <tr *ngFor="let e of entries">
+            <tr *ngFor="let e of entryList.pageItems()">
               <td class="when">{{ formatDate(e.createdAt) }}</td>
               <td>{{ e.actorName }}<span class="role" *ngIf="e.actorRole"> ({{ e.actorRole }})</span></td>
               <td>{{ typeLabel(e.type) }}</td>
@@ -48,8 +53,13 @@
           </tbody>
         </table>
         <ng-template #noEntries>
-          <p class="note" *ngIf="loaded">No admin actions match these filters.</p>
+          <p class="note" *ngIf="loaded()">No admin actions match these filters.</p>
         </ng-template>
+        <div class="pager" *ngIf="entryList.pageCount() > 1">
+          <button type="button" class="btn" [disabled]="entryList.currentPage() === 1" (click)="entryList.previous()">Previous</button>
+          <span>Page {{ entryList.currentPage() }} of {{ entryList.pageCount() }}</span>
+          <button type="button" class="btn" [disabled]="entryList.currentPage() === entryList.pageCount()" (click)="entryList.next()">Next</button>
+        </div>
       </div>
     </div>
 

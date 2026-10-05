@@ -2,8 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Group, JoinRequest, GroupCreationRequest, RoomRequest, BanRequest } from '../models/group.model';
+import { environment } from '../../environments/environment';
 
-const API_URL = 'http://localhost:3000/api/groups';
+const API_URL = `${environment.serverUrl}/api/groups`;
 
 @Injectable({
   providedIn: 'root'
@@ -19,22 +20,22 @@ export class GroupService {
     return this.http.post<Group>(API_URL, group);
   }
   getJoinRequests(): Observable<JoinRequest[]> {
-  return this.http.get<JoinRequest[]>('http://localhost:3000/api/join-requests');
+  return this.http.get<JoinRequest[]>(`${environment.serverUrl}/api/join-requests`);
 }
 
 submitJoinRequest(request: Partial<JoinRequest>): Observable<JoinRequest> {
-  return this.http.post<JoinRequest>('http://localhost:3000/api/join-requests', request);
+  return this.http.post<JoinRequest>(`${environment.serverUrl}/api/join-requests`, request);
 }
 getGroupRequests(): Observable<GroupCreationRequest[]> {
-  return this.http.get<GroupCreationRequest[]>('http://localhost:3000/api/group-requests');
+  return this.http.get<GroupCreationRequest[]>(`${environment.serverUrl}/api/group-requests`);
 }
 
 submitGroupRequest(request: Partial<GroupCreationRequest>): Observable<GroupCreationRequest> {
-  return this.http.post<GroupCreationRequest>('http://localhost:3000/api/group-requests', request);
+  return this.http.post<GroupCreationRequest>(`${environment.serverUrl}/api/group-requests`, request);
 }
 
 updateGroupRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
-  return this.http.put<void>(`http://localhost:3000/api/group-requests/${id}`, { status, rejectionReason });
+  return this.http.put<void>(`${environment.serverUrl}/api/group-requests/${id}`, { status, rejectionReason });
 }
 
 updateGroup(id: string, updates: Partial<Group>): Observable<void> {
@@ -42,29 +43,29 @@ updateGroup(id: string, updates: Partial<Group>): Observable<void> {
 }
 
 updateJoinRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
-  return this.http.put<void>(`http://localhost:3000/api/join-requests/${id}`, { status, rejectionReason });
+  return this.http.put<void>(`${environment.serverUrl}/api/join-requests/${id}`, { status, rejectionReason });
 }
 getRoomRequests(): Observable<RoomRequest[]> {
-  return this.http.get<RoomRequest[]>('http://localhost:3000/api/room-requests');
+  return this.http.get<RoomRequest[]>(`${environment.serverUrl}/api/room-requests`);
 }
 
 submitRoomRequest(request: Partial<RoomRequest>): Observable<RoomRequest> {
-  return this.http.post<RoomRequest>('http://localhost:3000/api/room-requests', request);
+  return this.http.post<RoomRequest>(`${environment.serverUrl}/api/room-requests`, request);
 }
 
 updateRoomRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
-  return this.http.put<void>(`http://localhost:3000/api/room-requests/${id}`, { status, rejectionReason });
+  return this.http.put<void>(`${environment.serverUrl}/api/room-requests/${id}`, { status, rejectionReason });
 }
 
 getBanRequests(): Observable<BanRequest[]> {
-  return this.http.get<BanRequest[]>('http://localhost:3000/api/ban-requests');
+  return this.http.get<BanRequest[]>(`${environment.serverUrl}/api/ban-requests`);
 }
 
 submitBanRequest(request: Partial<BanRequest>): Observable<BanRequest> {
-  return this.http.post<BanRequest>('http://localhost:3000/api/ban-requests', request);
+  return this.http.post<BanRequest>(`${environment.serverUrl}/api/ban-requests`, request);
 }
 
 updateBanRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
-  return this.http.put<void>(`http://localhost:3000/api/ban-requests/${id}`, { status, rejectionReason });
+  return this.http.put<void>(`${environment.serverUrl}/api/ban-requests/${id}`, { status, rejectionReason });
 }
 }

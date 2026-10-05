@@ -17,7 +17,7 @@ const { BSON } = require('mongodb');
 const HASH_ROUNDS = 10;
 
 // Backups are written here. The folder is in .gitignore.
-const BACKUP_DIR = path.join(__dirname, 'backups');
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, 'backups');
 
 // The collections saved by a backup.
 const BACKUP_COLLECTIONS = ['users', 'groups', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests', 'reports'];

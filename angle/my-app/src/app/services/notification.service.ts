@@ -2,8 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AppNotification, AuditEntry } from '../models/notification.model';
+import { environment } from '../../environments/environment';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = `${environment.serverUrl}/api`;
 
 // Talks to the server about the two things only the Super Admin
 // produces: one-way notifications, and the audit log.

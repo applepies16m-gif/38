@@ -2,8 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Channel } from '../models/group.model';
+import { environment } from '../../environments/environment';
 
-const API_URL = 'http://localhost:3000/api/channels';
+const API_URL = `${environment.serverUrl}/api/channels`;
 
 @Injectable({
   providedIn: 'root'

@@ -11,7 +11,13 @@ const { connectToDatabase, getDb } = require('./db');
 const { hashPassword, passwordMatches, convertPlainTextPasswords } = require('./passwords');
 
 const app = express();
-const PORT = 3000;
+// Settings come from environment variables when they are set, and
+// otherwise use the normal values. The automated tests set them so
+// that a test server runs on its own port, with its own database
+// and folders, and never touches real data. For normal use nothing
+// needs setting.
+const PORT = Number(process.env.PORT) || 3000;
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:4200';
 
 app.use(cors());
 app.use(express.json());
@@ -21,7 +27,7 @@ app.use(express.json());
 // Uploaded images are saved in this folder and served from /uploads.
 // Only the short path (e.g. /uploads/3f9a...c2.png) is stored in
 // MongoDB, never the image itself.
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const IMAGE_EXTENSIONS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif' };
 const IMAGE_TYPE_MESSAGE = 'Choose a JPEG, PNG or GIF image.';
@@ -82,7 +88,7 @@ function deleteUploadedImage(imageUrl) {
 // level than a single request/response cycle.
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: 'http://localhost:4200' }
+  cors: { origin: CLIENT_ORIGIN }
 });
 
 function toClientShape(doc) {
@@ -1504,7 +1510,7 @@ app.get('/api/audit-log', async (req, res) => {
       filter.createdAt.$lte = req.query.to + 'T23:59:59.999Z';
     }
   }
-  const entries = await getDb().collection('auditLog').find(filter).sort({ _id: -1 }).limit(1000).toArray();
+  const entries = await getDb().collection('auditLog').find(filter).sort({ createdAt: -1, _id: -1 }).limit(1000).toArray();
   res.json(entries.map(toClientShape));
 });
 

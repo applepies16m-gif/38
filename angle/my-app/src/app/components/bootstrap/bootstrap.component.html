@@ -5,9 +5,9 @@
     <span class="brand-tagline">first-time setup.</span>
   </div>
 
-  <div class="bootstrap-wrap">
+  <div class="bootstrap-wrap" role="main">
     <div class="panel bootstrap-box">
-      <div class="panel-header">Create the Initial Super Admin</div>
+      <div class="panel-header" role="heading" aria-level="2">Create the Initial Super Admin</div>
       <div class="panel-body">
 
         <p class="helper-text">
@@ -19,47 +19,47 @@
         <form (ngSubmit)="onBootstrap()">
 
           <div class="field-row">
-            <label>First Name</label>
-            <input type="text" [(ngModel)]="firstName" name="firstName" maxlength="50" />
+            <label for="bootstrap-firstname">First Name</label>
+            <input id="bootstrap-firstname" type="text" [(ngModel)]="firstName" name="firstName" maxlength="50" />
           </div>
 
           <div class="field-row">
-            <label>Last Name</label>
-            <input type="text" [(ngModel)]="lastName" name="lastName" maxlength="50" />
+            <label for="bootstrap-lastname">Last Name</label>
+            <input id="bootstrap-lastname" type="text" [(ngModel)]="lastName" name="lastName" maxlength="50" />
           </div>
 
           <div class="field-row">
-            <label>Display Name (optional)</label>
-            <input type="text" [(ngModel)]="displayName" name="displayName" />
+            <label for="bootstrap-displayname">Display Name (optional)</label>
+            <input id="bootstrap-displayname" type="text" [(ngModel)]="displayName" name="displayName" />
           </div>
 
           <div class="field-row">
-            <label>Username</label>
-            <input type="text" [(ngModel)]="username" name="username" />
+            <label for="bootstrap-username">Username</label>
+            <input id="bootstrap-username" type="text" [(ngModel)]="username" name="username" />
           </div>
 
           <div class="field-row">
-            <label>Email</label>
-            <input type="text" [(ngModel)]="email" name="email" />
+            <label for="bootstrap-email">Email</label>
+            <input id="bootstrap-email" type="text" [(ngModel)]="email" name="email" />
           </div>
 
           <div class="field-row">
-            <label>Date of Birth</label>
-            <input type="date" [(ngModel)]="dateOfBirth" name="dateOfBirth" />
+            <label for="bootstrap-dateofbirth">Date of Birth</label>
+            <input id="bootstrap-dateofbirth" type="date" [(ngModel)]="dateOfBirth" name="dateOfBirth" />
           </div>
 
           <div class="field-row">
-            <label>Password</label>
-            <input type="password" [(ngModel)]="password" name="password" />
+            <label for="bootstrap-password">Password</label>
+            <input id="bootstrap-password" type="password" [(ngModel)]="password" name="password" />
             <span class="hint-inline">min 8 characters, 1 uppercase letter</span>
           </div>
 
           <div class="field-row">
-            <label>Confirm Password</label>
-            <input type="password" [(ngModel)]="confirmPassword" name="confirmPassword" />
+            <label for="bootstrap-confirmpassword">Confirm Password</label>
+            <input id="bootstrap-confirmpassword" type="password" [(ngModel)]="confirmPassword" name="confirmPassword" />
           </div>
 
-          <div *ngIf="errorMsg" class="error-msg">{{ errorMsg }}</div>
+          <div *ngIf="errorMsg" class="error-msg" role="alert">{{ errorMsg }}</div>
 
           <button type="submit" class="btn btn-primary bootstrap-btn">Create Super Admin</button>
         </form>

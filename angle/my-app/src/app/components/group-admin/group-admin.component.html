@@ -6,13 +6,13 @@
     <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
   </div>
 
-  <div class="ga-body">
+  <div class="ga-body" role="main">
 
     <!-- Group switcher: only shown if the admin manages more than one group -->
     <div class="panel" *ngIf="myGroups.length > 1">
-      <div class="panel-header">Managing</div>
+      <div class="panel-header" role="heading" aria-level="2">Managing</div>
       <div class="panel-body group-switcher">
-        <button
+        <button type="button"
           *ngFor="let g of myGroups"
           class="btn"
           [class.btn-primary]="g.id === selectedGroupId"
@@ -32,7 +32,7 @@
     <ng-container *ngIf="selectedGroup">
 
       <div class="panel">
-        <div class="panel-header">Pending Join Requests — {{ selectedGroup.title }}</div>
+        <div class="panel-header" role="heading" aria-level="2">Pending Join Requests — {{ selectedGroup.title }}</div>
         <div class="panel-body">
           <table class="list-table" *ngIf="pendingJoinRequestsForGroup.length; else noJoinReq">
             <thead>
@@ -42,8 +42,8 @@
               <tr *ngFor="let jr of pendingJoinRequestsForGroup">
                 <td>{{ requesterName(jr.userId) }}</td>
                 <td>
-                  <a (click)="approveJoinRequest(jr)">approve</a> &middot;
-                  <a (click)="rejectJoinRequest(jr)">reject</a>
+                  <button type="button" class="link-button" (click)="approveJoinRequest(jr)">approve</button> &middot;
+                  <button type="button" class="link-button" (click)="rejectJoinRequest(jr)">reject</button>
                 </td>
               </tr>
             </tbody>
@@ -52,7 +52,7 @@
         </div>
       </div>
 <div class="panel">
-  <div class="panel-header">Pending Room Requests — {{ selectedGroup.title }}</div>
+  <div class="panel-header" role="heading" aria-level="2">Pending Room Requests — {{ selectedGroup.title }}</div>
   <div class="panel-body">
     <table class="list-table" *ngIf="pendingRoomRequestsForGroup.length; else noRoomReq">
       <thead>
@@ -63,8 +63,8 @@
           <td># {{ rr.roomName }}</td>
           <td>{{ requesterName(rr.requestedBy) }}</td>
           <td>
-            <a (click)="approveRoomRequest(rr)">approve</a> &middot;
-            <a (click)="rejectRoomRequest(rr)">reject</a>
+            <button type="button" class="link-button" (click)="approveRoomRequest(rr)">approve</button> &middot;
+            <button type="button" class="link-button" (click)="rejectRoomRequest(rr)">reject</button>
           </td>
         </tr>
       </tbody>
@@ -74,7 +74,7 @@
 </div>
 
 <div class="panel">
-  <div class="panel-header">Pending Remove / Ban Requests — {{ selectedGroup.title }}</div>
+  <div class="panel-header" role="heading" aria-level="2">Pending Remove / Ban Requests — {{ selectedGroup.title }}</div>
   <div class="panel-body">
     <table class="list-table" *ngIf="pendingBanRequestsForGroup.length; else noBanReq">
       <thead>
@@ -87,8 +87,8 @@
           <td>{{ requesterName(br.requestedBy) }}</td>
           <td>{{ br.reason }}</td>
           <td>
-            <a (click)="approveBanRequest(br)">approve</a> &middot;
-            <a (click)="rejectBanRequest(br)">reject</a>
+            <button type="button" class="link-button" (click)="approveBanRequest(br)">approve</button> &middot;
+            <button type="button" class="link-button" (click)="rejectBanRequest(br)">reject</button>
           </td>
         </tr>
       </tbody>
@@ -101,7 +101,7 @@
 </div>
 
 <div class="panel">
-  <div class="panel-header">Reports — {{ selectedGroup.title }}</div>
+  <div class="panel-header" role="heading" aria-level="2">Reports — {{ selectedGroup.title }}</div>
   <div class="panel-body">
     <p class="reason-text">Reports made by members of this group. The Super Admin decides each one.</p>
     <table class="list-table" *ngIf="reportsForGroup.length; else noReports">
@@ -125,7 +125,7 @@
   </div>
 </div>
       <div class="panel">
-        <div class="panel-header">Members — {{ selectedGroup.title }}</div>
+        <div class="panel-header" role="heading" aria-level="2">Members — {{ selectedGroup.title }}</div>
         <div class="panel-body">
           <table class="list-table">
             <thead>
@@ -142,15 +142,15 @@
                 <td>
                   <!-- An ordinary member can be promoted or banned directly. -->
                   <ng-container *ngIf="!isAdmin(m)">
-                    <a (click)="promoteToAdmin(m)">promote</a> &middot;
-                    <a (click)="banMember(m)">ban</a>
+                    <button type="button" class="link-button" (click)="promoteToAdmin(m)">promote</button> &middot;
+                    <button type="button" class="link-button" (click)="banMember(m)">ban</button>
                   </ng-container>
                   <!-- An admin can step down themself (if another admin remains). -->
-                  <a *ngIf="isAdmin(m) && m.id === currentUserId" (click)="demoteAdmin(m)">step down as admin</a>
+                  <button type="button" class="link-button" *ngIf="isAdmin(m) && m.id === currentUserId" (click)="demoteAdmin(m)">step down as admin</button>
                   <!-- Another admin can only be removed or banned by asking the Super Admin. -->
                   <ng-container *ngIf="isAdmin(m) && m.id !== currentUserId">
-                    <a (click)="requestAdminRemoval(m, 'remove')">request removal</a> &middot;
-                    <a (click)="requestAdminRemoval(m, 'ban')">request ban</a>
+                    <button type="button" class="link-button" (click)="requestAdminRemoval(m, 'remove')">request removal</button> &middot;
+                    <button type="button" class="link-button" (click)="requestAdminRemoval(m, 'ban')">request ban</button>
                   </ng-container>
                 </td>
               </tr>
@@ -160,30 +160,30 @@
       </div>
 
       <div class="panel">
-        <div class="panel-header">Group Settings — {{ selectedGroup.title }}</div>
+        <div class="panel-header" role="heading" aria-level="2">Group Settings — {{ selectedGroup.title }}</div>
         <div class="panel-body form-grid">
-          <label>Title (max 30 chars)</label>
-          <input type="text" [(ngModel)]="selectedGroup.title" maxlength="30" />
+          <label for="group-admin-selectedgroup-title">Title (max 30 chars)</label>
+          <input id="group-admin-selectedgroup-title" type="text" [(ngModel)]="selectedGroup.title" maxlength="30" />
 
-          <label>Description (max 250 chars)</label>
-          <textarea [(ngModel)]="selectedGroup.description" maxlength="250" rows="3"></textarea>
+          <label for="group-admin-selectedgroup-description">Description (max 250 chars)</label>
+          <textarea id="group-admin-selectedgroup-description" [(ngModel)]="selectedGroup.description" maxlength="250" rows="3"></textarea>
 
-          <label>Age Limit (0 = none)</label>
-          <input type="number" [(ngModel)]="selectedGroup.ageLimit" />
+          <label for="group-admin-selectedgroup-agelimit">Age Limit (0 = none)</label>
+          <input id="group-admin-selectedgroup-agelimit" type="number" [(ngModel)]="selectedGroup.ageLimit" />
 
           <label>Chat Background Colour (optional)</label>
           <div>
-            <input type="color" [ngModel]="selectedGroup.theme || '#ffffff'" (ngModelChange)="selectedGroup.theme = $event" />
+            <input type="color" aria-label="Chat background colour" [ngModel]="selectedGroup.theme || '#ffffff'" (ngModelChange)="selectedGroup.theme = $event" />
             <span class="reason-text"> {{ selectedGroup.theme ? selectedGroup.theme : 'no colour set' }}</span>
-            <a *ngIf="selectedGroup.theme" (click)="clearTheme()"> &middot; remove colour</a>
+            <button type="button" class="link-button" *ngIf="selectedGroup.theme" (click)="clearTheme()"> &middot; remove colour</button>
           </div>
 
-          <button class="btn btn-primary" (click)="saveGroupSettings()">Save Settings</button>
+          <button type="button" class="btn btn-primary" (click)="saveGroupSettings()">Save Settings</button>
         </div>
       </div>
 
       <div class="panel">
-        <div class="panel-header">Channels — {{ selectedGroup.title }}</div>
+        <div class="panel-header" role="heading" aria-level="2">Channels — {{ selectedGroup.title }}</div>
         <div class="panel-body">
           <table class="list-table">
             <thead>
@@ -193,7 +193,7 @@
               <tr *ngFor="let ch of channelsForGroup">
                 <td># {{ ch.name }}</td>
                 <td>
-                  <a *ngIf="channelsForGroup.length > 1" (click)="deleteChannel(ch)">delete</a>
+                  <button type="button" class="link-button" *ngIf="channelsForGroup.length > 1" (click)="deleteChannel(ch)">delete</button>
                   <span *ngIf="channelsForGroup.length <= 1" class="reason-text">a group must keep one channel</span>
                 </td>
               </tr>
@@ -203,11 +203,11 @@
       </div>
 
       <div class="panel">
-  <div class="panel-header">Add Channel — {{ selectedGroup.title }}</div>
+  <div class="panel-header" role="heading" aria-level="2">Add Channel — {{ selectedGroup.title }}</div>
   <div class="panel-body form-grid">
-    <label>Channel Name</label>
-    <input type="text" [(ngModel)]="newChannelName" placeholder="e.g. exam-prep" />
-    <button class="btn btn-primary" (click)="createChannel()">Create Channel</button>
+    <label for="group-admin-newchannelname">Channel Name</label>
+    <input id="group-admin-newchannelname" type="text" [(ngModel)]="newChannelName" placeholder="e.g. exam-prep" />
+    <button type="button" class="btn btn-primary" (click)="createChannel()">Create Channel</button>
   </div>
 </div>
 

@@ -7,7 +7,7 @@
   --chrome-blue: #3b5998;
   --chrome-blue-dark: #2d4373;
   --chrome-blue-light: #4a6bab;
-  --chrome-blue-lighter: #5b78ad;
+  --chrome-blue-lighter: #5570aa;
   --chrome-blue-mid: #4e6a9e;
   --panel-border: #b5c7de;
   --panel-bg: #ffffff;
@@ -97,8 +97,8 @@ input[type="text"], input[type="password"] {
 
 .badge-admin { background: #c0392b; }
 .badge-user { background: var(--chrome-blue); }
-.badge-online { background: #2b9d3a; }
-.badge-offline { background: #999; }
+.badge-online { background: #1f7a2c; }
+.badge-offline { background: #6b6f76; }
 
 .panel-header {
   background: linear-gradient(to bottom, #f7f9fc, #e8edf5);
@@ -145,4 +145,111 @@ h1, h2, h3 {
   font-weight: bold;
   margin: 0 0 8px 0;
   text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
+}
+/* ---- Accessibility ---- */
+
+/* An action that looks like a link but is a real button, so it can
+   be reached with Tab and pressed with Enter or Space. A link with
+   no address can't be reached from the keyboard at all. */
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--chrome-blue);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--chrome-blue-dark);
+}
+
+/* A clear outline on whatever has keyboard focus. It is two-tone
+   (dark line, amber glow) so it shows on white panels and on the
+   blue bar alike. :focus-visible means it appears for keyboard
+   use, not on every mouse click. */
+:focus-visible {
+  outline: 2px solid #1c1e21;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px #ffbf47;
+}
+
+/* ---- Layout on narrower screens ---- */
+
+/* A table wider than its panel scrolls sideways inside the panel
+   instead of pushing the whole page wider. */
+.panel-body {
+  overflow-x: auto;
+}
+
+/* The links in a top bar wrap onto a second line when there isn't
+   room for them all, as on a tablet. */
+.top-bar,
+.top-bar-right {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+/* ---- Paging controls under a long list ---- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pager .btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- Animations ----
+   Each one marks something appearing, so the eye is drawn to what
+   changed. They are short, and none is needed to use the site. */
+
+/* Something eases into place instead of popping in. */
+@keyframes ease-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* A brief swell, used once to point out a new count. */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.25); }
+}
+
+/* A page's panels settle in when the page opens. */
+.panel {
+  animation: ease-in 0.25s ease-out;
+}
+
+/* An error or a confirmation eases in when it appears, so it is
+   noticed. These carry role="alert" or role="status". */
+[role="alert"],
+[role="status"] {
+  animation: ease-in 0.2s ease-out;
+}
+
+/* Buttons change colour smoothly under the pointer. */
+.btn,
+.link-button {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Some people get dizzy or distracted by movement and set their
+   device to ask for less of it. For them every animation and
+   transition is switched off. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

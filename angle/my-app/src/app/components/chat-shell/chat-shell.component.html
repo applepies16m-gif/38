@@ -9,53 +9,42 @@
       <a *ngIf="currentRole === 'group_admin' || currentRole === 'super_admin'" routerLink="/group-admin">Manage Group</a>
       <a routerLink="/group-request">Request Group</a>
       <a routerLink="/browse-groups">Browse Groups</a>
-      <a routerLink="/notifications">Notifications<span *ngIf="unreadNotifications > 0"> ({{ unreadNotifications }})</span></a>
+      <a routerLink="/notifications">Notifications<span class="unread-count" *ngIf="unreadNotifications > 0"> ({{ unreadNotifications }})</span></a>
       <a routerLink="/profile">My Profile</a>
-      <a (click)="logout()">Log Out</a>
+      <button type="button" class="link-button" (click)="logout()">Log Out</button>
     </div>
   </div>
 
   <ng-container *ngIf="hasGroups; else noGroupsShell">
-  <div class="body-columns">
+  <div class="body-columns" role="main">
 
     <div class="col-left">
 
-      <!-- Group switcher: pick which of your groups to view -->
-      <div class="panel group-switcher-panel" *ngIf="allGroups.length > 1">
-        <div class="panel-header">Your Groups</div>
-        <div class="panel-body no-pad">
-          <div
-            *ngFor="let g of allGroups"
-            class="channel-row"
-            [class.active]="g.id === activeGroupId"
-            (click)="activeGroupId = g.id"
-          >
-            {{ g.title }}
-          </div>
-        </div>
-      </div>
-
+      <!-- One panel per group the user belongs to, listing its channels. -->
 <div class="panel" *ngFor="let g of allGroups">
-  <div class="panel-header">{{ g.title }}</div>
+  <div class="panel-header" role="heading" aria-level="2">{{ g.title }}</div>
   <div class="panel-body no-pad">
-    <div
+    <button type="button"
       *ngFor="let ch of channelsForGroup(g.id)"
       class="channel-row"
       [class.active]="ch.id === activeChannelId"
+      [attr.aria-current]="ch.id === activeChannelId ? 'true' : null"
       (click)="selectChannel(ch.id)"
     >
       # {{ ch.name }}
-    </div>
+    </button>
   </div>
 </div>
 
     </div>
 
     <div class="col-center panel">
-      <div class="panel-header">
+      <div class="panel-header" role="heading" aria-level="2">
         # {{ activeChannel?.name || 'select a channel' }}
       </div>
-      <div class="thread" [class.themed]="currentGroup?.theme" [style.background-color]="currentGroup?.theme || null">
+      <!-- role="log" makes a screen reader read out each new message
+           as it arrives, without interrupting what is being read. -->
+      <div class="thread" role="log" aria-live="polite" aria-label="Messages" [class.themed]="currentGroup?.theme" [style.background-color]="currentGroup?.theme || null">
         <div class="system-row" *ngIf="channelNotice">{{ channelNotice }}</div>
         <ng-container *ngFor="let item of threadItems">
           <div class="system-row" *ngIf="isSystemMessage(item)">
@@ -64,10 +53,10 @@
           <div class="msg-row" *ngIf="!isSystemMessage(item)">
             <span class="msg-sender">{{ item.senderName }}</span>
             <span class="msg-time">{{ formatTime(item.timestamp) }}</span>
-            <a class="msg-delete" *ngIf="item.senderId === currentUserId" (click)="deleteMessage(item)">delete</a>
+            <button type="button" class="link-button msg-delete" *ngIf="item.senderId === currentUserId" (click)="deleteMessage(item)">delete</button>
             <ng-container *ngIf="item.senderId !== currentUserId">
-              <a class="msg-delete" (click)="blockSender(item)">block</a>
-              <a class="msg-delete" (click)="reportSender(item)">report</a>
+              <button type="button" class="link-button msg-delete" (click)="blockSender(item)">block</button>
+              <button type="button" class="link-button msg-delete" (click)="reportSender(item)">report</button>
             </ng-container>
             <div class="msg-text" *ngIf="item.text">{{ item.text }}</div>
             <img *ngIf="item.imageUrl" [src]="imageSrc(item.imageUrl)" class="msg-image" alt="Image sent by {{ item.senderName }}" />
@@ -76,9 +65,9 @@
       </div>
       <div class="composer-attachment" *ngIf="pendingImage || imageError">
         <span *ngIf="pendingImage">
-          Attached: {{ pendingImage.name }} &middot; <a (click)="removePendingImage()">remove</a>
+          Attached: {{ pendingImage.name }} &middot; <button type="button" class="link-button" (click)="removePendingImage()">remove</button>
         </span>
-        <span class="composer-error" *ngIf="imageError">{{ imageError }}</span>
+        <span class="composer-error" *ngIf="imageError" role="alert">{{ imageError }}</span>
       </div>
       <div class="composer">
         <input
@@ -86,23 +75,24 @@
           placeholder="Write a message..."
           [(ngModel)]="draftMessage"
           (keyup.enter)="sendMessage()"
-        />
+        aria-label="Write a message" />
         <input
           #imagePicker
           type="file"
+          aria-label="Choose an image to attach"
           accept="image/jpeg, image/png, image/gif"
           hidden
           (change)="onImageSelected($event)"
         />
-        <button class="btn" title="Attach a JPEG, PNG or GIF (max 2 MB)" (click)="imagePicker.click()">Image</button>
-        <button class="btn btn-primary" [disabled]="isSending" (click)="sendMessage()">
+        <button type="button" class="btn" title="Attach a JPEG, PNG or GIF (max 2 MB)" (click)="imagePicker.click()">Image</button>
+        <button type="button" class="btn btn-primary" [disabled]="isSending" (click)="sendMessage()">
           {{ isSending ? 'Sending...' : 'Send' }}
         </button>
       </div>
     </div>
 
     <div class="col-right panel">
-      <div class="panel-header">Online Now{{ currentGroup ? ' — ' + currentGroup.title : '' }}</div>
+      <div class="panel-header" role="heading" aria-level="2">Online Now{{ currentGroup ? ' — ' + currentGroup.title : '' }}</div>
       <div class="panel-body no-pad">
         <div class="user-row" *ngIf="!currentGroup">Open a channel to see who in that group is online.</div>
         <div class="user-row" *ngFor="let m of groupMembers">
@@ -112,8 +102,8 @@
           <!-- Ask the group's admins to remove or ban this member. Not
                offered for yourself or for a Group Admin. -->
           <div class="msg-time" *ngIf="m.id !== currentUserId && !m.isAdmin">
-            <a (click)="requestMemberAction(m, 'remove')">ask to remove</a> &middot;
-            <a (click)="requestMemberAction(m, 'ban')">ask to ban</a>
+            <button type="button" class="link-button" (click)="requestMemberAction(m, 'remove')">ask to remove</button> &middot;
+            <button type="button" class="link-button" (click)="requestMemberAction(m, 'ban')">ask to ban</button>
           </div>
         </div>
       </div>
@@ -123,7 +113,7 @@
   </ng-container>
 
   <ng-template #noGroupsShell>
-    <div class="body-columns no-groups-shell">
+    <div class="body-columns no-groups-shell" role="main">
       <div class="panel no-groups-panel">
         <div class="panel-body">
           <p class="empty-groups-text">You're not in any groups yet — join one to start chatting.</p>

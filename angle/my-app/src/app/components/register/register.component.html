@@ -5,55 +5,55 @@
     <span class="brand-tagline">join the community.</span>
   </div>
 
-  <div class="register-wrap">
+  <div class="register-wrap" role="main">
     <div class="panel register-box">
-      <div class="panel-header">Create Your Account</div>
+      <div class="panel-header" role="heading" aria-level="2">Create Your Account</div>
       <div class="panel-body">
         <form (ngSubmit)="onRegister()">
 
           <div class="field-row">
-            <label>First Name</label>
-            <input type="text" [(ngModel)]="firstName" name="firstName" maxlength="50" />
+            <label for="register-firstname">First Name</label>
+            <input id="register-firstname" type="text" [(ngModel)]="firstName" name="firstName" maxlength="50" />
           </div>
 
           <div class="field-row">
-            <label>Last Name</label>
-            <input type="text" [(ngModel)]="lastName" name="lastName" maxlength="50" />
+            <label for="register-lastname">Last Name</label>
+            <input id="register-lastname" type="text" [(ngModel)]="lastName" name="lastName" maxlength="50" />
           </div>
 
           <div class="field-row">
-            <label>Display Name (optional)</label>
-            <input type="text" [(ngModel)]="displayName" name="displayName" />
+            <label for="register-displayname">Display Name (optional)</label>
+            <input id="register-displayname" type="text" [(ngModel)]="displayName" name="displayName" />
             <span class="hint-inline">shown to other users; left empty, your first and last name are used</span>
           </div>
 
           <div class="field-row">
-            <label>Username</label>
-            <input type="text" [(ngModel)]="username" name="username" />
+            <label for="register-username">Username</label>
+            <input id="register-username" type="text" [(ngModel)]="username" name="username" />
           </div>
 
           <div class="field-row">
-            <label>Email</label>
-            <input type="text" [(ngModel)]="email" name="email" />
+            <label for="register-email">Email</label>
+            <input id="register-email" type="text" [(ngModel)]="email" name="email" />
           </div>
 
           <div class="field-row">
-            <label>Date of Birth</label>
-            <input type="date" [(ngModel)]="dateOfBirth" name="dateOfBirth" />
+            <label for="register-dateofbirth">Date of Birth</label>
+            <input id="register-dateofbirth" type="date" [(ngModel)]="dateOfBirth" name="dateOfBirth" />
           </div>
 
           <div class="field-row">
-            <label>Password</label>
-            <input type="password" [(ngModel)]="password" name="password" />
+            <label for="register-password">Password</label>
+            <input id="register-password" type="password" [(ngModel)]="password" name="password" />
             <span class="hint-inline">min 8 characters, 1 uppercase letter</span>
           </div>
 
           <div class="field-row">
-            <label>Confirm Password</label>
-            <input type="password" [(ngModel)]="confirmPassword" name="confirmPassword" />
+            <label for="register-confirmpassword">Confirm Password</label>
+            <input id="register-confirmpassword" type="password" [(ngModel)]="confirmPassword" name="confirmPassword" />
           </div>
 
-          <div *ngIf="errorMsg" class="error-msg">{{ errorMsg }}</div>
+          <div *ngIf="errorMsg" class="error-msg" role="alert">{{ errorMsg }}</div>
 
           <button type="submit" class="btn btn-primary register-btn">Create Account</button>
 

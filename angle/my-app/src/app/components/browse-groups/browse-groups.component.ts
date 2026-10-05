@@ -8,6 +8,7 @@ import { AuthService } from '../../services/auth.service';
 import { Group } from '../../models/group.model';
 import { User } from '../../models/user.model';
 import { calculateAge } from '../../utils/date-of-birth';
+import { PagedList } from '../../utils/paged-list';
 
 // What the page shows for one group: the button's text, whether it
 // can be clicked, and the reason if it can't.
@@ -25,8 +26,12 @@ interface JoinStatus {
   styleUrl: './browse-groups.component.css'
 })
 export class BrowseGroupsComponent implements OnInit {
-  groups: Group[] = [];
-  searchTerm = '';
+  // Every group, searchable by title or description and shown a
+  // page at a time. See PagedList for how the signals inside work.
+  groupList = new PagedList<Group>(
+    (group, term) => group.title.toLowerCase().includes(term) || (group.description || '').toLowerCase().includes(term),
+    6
+  );
   currentUser: User | null = null;
   // Groups this user has a pending request for. Read from the
   // server, so "Requested" survives a page reload.
@@ -52,8 +57,7 @@ export class BrowseGroupsComponent implements OnInit {
     this.currentUser = savedUser;
 
     this.groupService.getGroups().subscribe(groups => {
-      this.groups = groups;
-      this.cdr.markForCheck();
+      this.groupList.setItems(groups);
     });
 
     // Bans and memberships may have changed since login, and the
@@ -84,11 +88,6 @@ export class BrowseGroupsComponent implements OnInit {
         .map(r => r.groupId);
       this.cdr.markForCheck();
     });
-  }
-
-  get filteredGroups(): Group[] {
-    const term = this.searchTerm.toLowerCase();
-    return this.groups.filter(g => g.title.toLowerCase().includes(term));
   }
 
   // Works out what to show for one group. These are the same rules

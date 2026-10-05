@@ -11,17 +11,19 @@ import { BrowseGroupsComponent } from './components/browse-groups/browse-groups.
 import { NotificationsComponent } from './components/notifications/notifications.component';
 import { AuditLogComponent } from './components/audit-log/audit-log.component';
 
+// Each route has a title. Angular puts it in the browser tab, and a
+// screen reader announces it when the page changes.
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
-  { path: 'login', component: LoginComponent },
-  { path: 'chat', component: ChatShellComponent },
-  { path: 'admin', component: AdminPanelComponent },
-  { path: 'group-admin', component: GroupAdminComponent },
-  { path: 'group-request', component: GroupRequestComponent },
-  { path: 'profile', component: ProfileComponent },
-  { path: 'register', component: RegisterComponent },
-  { path: 'bootstrap', component: BootstrapComponent },
-  { path: 'browse-groups', component: BrowseGroupsComponent },
-  { path: 'notifications', component: NotificationsComponent },
-  { path: 'audit-log', component: AuditLogComponent },
+  { path: 'login', component: LoginComponent, title: 'Fabulari - Log In' },
+  { path: 'chat', component: ChatShellComponent, title: 'Fabulari - Chat' },
+  { path: 'admin', component: AdminPanelComponent, title: 'Fabulari - Admin Panel' },
+  { path: 'group-admin', component: GroupAdminComponent, title: 'Fabulari - Manage Group' },
+  { path: 'group-request', component: GroupRequestComponent, title: 'Fabulari - Request a Group' },
+  { path: 'profile', component: ProfileComponent, title: 'Fabulari - My Profile' },
+  { path: 'register', component: RegisterComponent, title: 'Fabulari - Register' },
+  { path: 'bootstrap', component: BootstrapComponent, title: 'Fabulari - First-Time Setup' },
+  { path: 'browse-groups', component: BrowseGroupsComponent, title: 'Fabulari - Browse Groups' },
+  { path: 'notifications', component: NotificationsComponent, title: 'Fabulari - Notifications' },
+  { path: 'audit-log', component: AuditLogComponent, title: 'Fabulari - Audit Log' },
 ];

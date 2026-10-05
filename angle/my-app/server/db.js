@@ -1,7 +1,9 @@
 const { MongoClient } = require('mongodb');
 
-const MONGO_URL = 'mongodb://localhost:27017';
-const DB_NAME = 'fabulari';
+// The automated tests set DB_NAME so they use a database of their
+// own. Normal use needs neither variable.
+const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017';
+const DB_NAME = process.env.DB_NAME || 'fabulari';
 
 let db = null;
 

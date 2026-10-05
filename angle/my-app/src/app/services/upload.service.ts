@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
-const SERVER_URL = 'http://localhost:3000';
+const SERVER_URL = environment.serverUrl;
 
 // The same limits the server enforces. Checking here first gives
 // the user an answer without uploading the file.
