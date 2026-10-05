@@ -57,6 +57,31 @@ function pickFields(source, allowedFields) {
   return picked;
 }
 
+// Sent to a socket whose join or message was refused.
+const CHANNEL_DENIED_MESSAGE = 'You are not a member of this group, or you have been banned from it.';
+
+// Decides whether a user may read and post in a channel: the
+// channel and user must exist, the user must not be banned from
+// the system, and the channel's group must be in the user's
+// groupIds and not in their bannedFromGroupIds. Ids that are
+// missing or malformed are refused rather than causing an error.
+async function canUseChannel(userId, channelId) {
+  if (typeof userId !== 'string' || typeof channelId !== 'string') {
+    return false;
+  }
+  if (!ObjectId.isValid(userId) || !ObjectId.isValid(channelId)) {
+    return false;
+  }
+  const channel = await getDb().collection('channels').findOne({ _id: new ObjectId(channelId) });
+  const user = await getDb().collection('users').findOne({ _id: new ObjectId(userId) });
+  if (!channel || !user || user.isSystemBanned) {
+    return false;
+  }
+  const isMember = (user.groupIds || []).includes(channel.groupId);
+  const isBanned = (user.bannedFromGroupIds || []).includes(channel.groupId);
+  return isMember && !isBanned;
+}
+
 // --- Bootstrap ---
 
 app.get('/api/bootstrap-status', async (req, res) => {
@@ -301,7 +326,9 @@ app.post('/api/channels', async (req, res) => {
 
 app.get('/api/messages', async (req, res) => {
   const channelId = req.query.channelId;
-  if (!channelId) {
+  // The same membership rule as the sockets, so a user who can't
+  // join a channel can't read its history either.
+  if (!channelId || !(await canUseChannel(req.query.userId, channelId))) {
     return res.json([]);
   }
   // Newest 5 first, then reverse so they display oldest-to-newest,
@@ -321,8 +348,19 @@ app.get('/api/messages', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
-  socket.on('joinChannel', ({ channelId, username }) => {
+  socket.on('joinChannel', async ({ channelId, userId, username } = {}) => {
+    // A refused join stores nothing and announces nothing; only
+    // the refused socket is told.
+    if (!(await canUseChannel(userId, channelId))) {
+      socket.emit('channelDenied', { channelId, message: CHANNEL_DENIED_MESSAGE });
+      return;
+    }
+
+    // Remembered only once the check has passed. sendMessage and
+    // the leave notices rely on these instead of what the client
+    // sends later.
     socket.data.channelId = channelId;
+    socket.data.userId = userId;
     socket.data.username = username;
     socket.join(channelId);
     socket.to(channelId).emit('userJoined', {
@@ -332,18 +370,38 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('leaveChannel', ({ channelId, username }) => {
+  socket.on('leaveChannel', ({ channelId } = {}) => {
+    // Only announce a leave for a socket that really was in the
+    // room, so a refused user never produces a "left" notice.
+    if (!socket.rooms.has(channelId)) {
+      return;
+    }
     socket.leave(channelId);
     socket.to(channelId).emit('userLeft', {
       channelId,
-      username,
+      username: socket.data.username,
       timestamp: new Date().toISOString()
     });
   });
 
- socket.on('sendMessage', async (message) => {
-  const result = await getDb().collection('messages').insertOne(message);
-  const saved = { ...message, id: result.insertedId.toString() };
+ socket.on('sendMessage', async (message = {}) => {
+  // The sender is the user this socket joined as, not whatever id
+  // the message claims. The socket must be in the channel's room
+  // and the user must still be allowed in it -- a ban can arrive
+  // while the channel is open.
+  const userId = socket.data.userId;
+  const inRoom = socket.rooms.has(message.channelId);
+  if (!inRoom || !(await canUseChannel(userId, message.channelId))) {
+    if (inRoom) {
+      socket.leave(message.channelId);
+    }
+    socket.emit('channelDenied', { channelId: message.channelId, message: CHANNEL_DENIED_MESSAGE });
+    return;
+  }
+
+  const toSave = { ...message, senderId: userId };
+  const result = await getDb().collection('messages').insertOne(toSave);
+  const saved = { ...toSave, id: result.insertedId.toString() };
   io.to(message.channelId).emit('newMessage', saved);
 
   // Enforce the "only the last 5 messages are stored" rule: find
@@ -360,8 +418,11 @@ io.on('connection', (socket) => {
   }
 });
 
-  socket.on('disconnect', () => {
-    if (socket.data.channelId && socket.data.username) {
+  // 'disconnecting' fires while the socket is still in its rooms.
+  // By the time 'disconnect' fires socket.rooms is already empty,
+  // so the "was it really in the room" check could never pass there.
+  socket.on('disconnecting', () => {
+    if (socket.data.channelId && socket.rooms.has(socket.data.channelId)) {
       socket.to(socket.data.channelId).emit('userLeft', {
         channelId: socket.data.channelId,
         username: socket.data.username,

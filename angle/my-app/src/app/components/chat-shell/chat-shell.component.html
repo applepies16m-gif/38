@@ -55,6 +55,7 @@
         # {{ activeChannel?.name || 'select a channel' }}
       </div>
       <div class="thread">
+        <div class="system-row" *ngIf="channelNotice">{{ channelNotice }}</div>
         <ng-container *ngFor="let item of threadItems">
           <div class="system-row" *ngIf="isSystemMessage(item)">
             {{ item.username }} has {{ item.type === 'join' ? 'joined' : 'left' }} the room &middot; {{ formatTime(item.timestamp) }}

@@ -39,6 +39,8 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   messages: ChatMessage[] = [];
   systemMessages: SystemMessage[] = [];
   draftMessage = '';
+  // Shown in the thread when the server refuses a join or message.
+  channelNotice = '';
 
   constructor(
     private router: Router,
@@ -80,27 +82,25 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     });
 
-    this.userService.getUsers().subscribe(users => {
-      this.onlineUsers = users;
-
-      // The copy in localStorage dates from login. Bans, approvals
-      // and promotions since then only exist on the server, so
-      // replace the saved copy with the server's current one.
-      const freshUser = users.find(u => u.id === currentUser.id);
-      if (!freshUser) {
-        // The account no longer exists, so end the session.
-        this.logout();
-        return;
-      }
-      this.authService.login(freshUser);
-      this.currentUsername = freshUser.displayName || freshUser.username;
-      this.currentRole = freshUser.role;
-      this.myGroupIds = freshUser.groupIds;
-      this.applyMembership();
-    });
+    this.refreshCurrentUser();
 
     this.socketService.getSocket().on('newMessage', (message: ChatMessage) => {
       this.messages.push(message);
+      this.cdr.markForCheck();
+    });
+
+    // The server refused a join or a message, because this user is
+    // not a member of the channel's group or has been banned from
+    // it. Close the channel, say why, and re-read the user from the
+    // server so the group disappears from the list.
+    this.socketService.getSocket().on('channelDenied', (data: { channelId: string; message: string }) => {
+      if (data.channelId === this.activeChannelId) {
+        this.activeChannelId = '';
+        this.messages = [];
+        this.systemMessages = [];
+      }
+      this.channelNotice = data.message;
+      this.refreshCurrentUser();
       this.cdr.markForCheck();
     });
 
@@ -127,6 +127,28 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Re-reads the user list from the server. It fills "Online Now"
+  // and also replaces the copy of the current user in localStorage,
+  // which dates from login: bans, approvals and promotions since
+  // then only exist on the server.
+  private refreshCurrentUser(): void {
+    this.userService.getUsers().subscribe(users => {
+      this.onlineUsers = users;
+
+      const freshUser = users.find(u => u.id === this.currentUserId);
+      if (!freshUser) {
+        // The account no longer exists, so end the session.
+        this.logout();
+        return;
+      }
+      this.authService.login(freshUser);
+      this.currentUsername = freshUser.displayName || freshUser.username;
+      this.currentRole = freshUser.role;
+      this.myGroupIds = freshUser.groupIds;
+      this.applyMembership();
+    });
+  }
+
   // Works out which groups to show: only the ones this user
   // currently belongs to. Called whenever the group list or the
   // user's membership changes.
@@ -145,6 +167,7 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     socket.off('newMessage');
     socket.off('userJoined');
     socket.off('userLeft');
+    socket.off('channelDenied');
 
     if (this.activeChannelId) {
       socket.emit('leaveChannel', {
@@ -183,13 +206,17 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     this.activeChannelId = channelId;
     this.messages = [];
     this.systemMessages = [];
+    this.channelNotice = '';
 
+    // The user id lets the server check this user is a member of
+    // the channel's group before letting them in.
     this.socketService.getSocket().emit('joinChannel', {
       channelId: this.activeChannelId,
+      userId: this.currentUserId,
       username: this.currentUsername
     });
 
-    this.messageService.getRecentMessages(channelId).subscribe(history => {
+    this.messageService.getRecentMessages(channelId, this.currentUserId).subscribe(history => {
       // Ignore a late response if the user already switched channels.
       if (this.activeChannelId !== channelId) {
         return;
