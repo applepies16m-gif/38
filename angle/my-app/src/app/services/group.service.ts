@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Group, JoinRequest, GroupCreationRequest } from '../models/group.model';
+import { Group, JoinRequest, GroupCreationRequest, RoomRequest, BanRequest } from '../models/group.model';
 
 const API_URL = 'http://localhost:3000/api/groups';
 
@@ -35,5 +35,36 @@ submitGroupRequest(request: Partial<GroupCreationRequest>): Observable<GroupCrea
 
 updateGroupRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
   return this.http.put<void>(`http://localhost:3000/api/group-requests/${id}`, { status, rejectionReason });
+}
+
+updateGroup(id: string, updates: Partial<Group>): Observable<void> {
+  return this.http.put<void>(`${API_URL}/${id}`, updates);
+}
+
+updateJoinRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
+  return this.http.put<void>(`http://localhost:3000/api/join-requests/${id}`, { status, rejectionReason });
+}
+getRoomRequests(): Observable<RoomRequest[]> {
+  return this.http.get<RoomRequest[]>('http://localhost:3000/api/room-requests');
+}
+
+submitRoomRequest(request: Partial<RoomRequest>): Observable<RoomRequest> {
+  return this.http.post<RoomRequest>('http://localhost:3000/api/room-requests', request);
+}
+
+updateRoomRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
+  return this.http.put<void>(`http://localhost:3000/api/room-requests/${id}`, { status, rejectionReason });
+}
+
+getBanRequests(): Observable<BanRequest[]> {
+  return this.http.get<BanRequest[]>('http://localhost:3000/api/ban-requests');
+}
+
+submitBanRequest(request: Partial<BanRequest>): Observable<BanRequest> {
+  return this.http.post<BanRequest>('http://localhost:3000/api/ban-requests', request);
+}
+
+updateBanRequest(id: string, status: string, rejectionReason?: string): Observable<void> {
+  return this.http.put<void>(`http://localhost:3000/api/ban-requests/${id}`, { status, rejectionReason });
 }
 }

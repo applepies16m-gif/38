@@ -18,6 +18,9 @@ export class UserService {
 bootstrapSuperAdmin(user: Partial<User>): Observable<User> {
   return this.http.post<User>(`${API_BASE}/bootstrap`, user);
 }
+updateUser(id: string, updates: Partial<User>): Observable<void> {
+  return this.http.put<void>(`${API_URL}/${id}`, updates);
+}
 
   getUsers(): Observable<User[]> {
     return this.http.get<User[]>(API_URL);
