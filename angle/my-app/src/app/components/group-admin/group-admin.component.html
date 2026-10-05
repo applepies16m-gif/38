@@ -74,15 +74,17 @@
 </div>
 
 <div class="panel">
-  <div class="panel-header">Pending Ban Requests — {{ selectedGroup.title }}</div>
+  <div class="panel-header">Pending Remove / Ban Requests — {{ selectedGroup.title }}</div>
   <div class="panel-body">
     <table class="list-table" *ngIf="pendingBanRequestsForGroup.length; else noBanReq">
       <thead>
-        <tr><th>Target User</th><th>Reason</th><th></th></tr>
+        <tr><th>About</th><th>Asked For</th><th>Requested By</th><th>Reason</th><th></th></tr>
       </thead>
       <tbody>
         <tr *ngFor="let br of pendingBanRequestsForGroup">
           <td>{{ requesterName(br.targetUserId) }}</td>
+          <td>{{ br.action === 'remove' ? 'remove from group' : 'ban from group' }}</td>
+          <td>{{ requesterName(br.requestedBy) }}</td>
           <td>{{ br.reason }}</td>
           <td>
             <a (click)="approveBanRequest(br)">approve</a> &middot;
@@ -91,7 +93,35 @@
         </tr>
       </tbody>
     </table>
-    <ng-template #noBanReq><p class="empty-text">No pending ban requests.</p></ng-template>
+    <ng-template #noBanReq><p class="empty-text">No pending remove or ban requests.</p></ng-template>
+    <p class="reason-text" *ngFor="let ar of myAdminRemovalRequests">
+      Waiting for the Super Admin: your request to {{ ar.action === 'remove' ? 'remove' : 'ban' }} {{ requesterName(ar.targetUserId) }}.
+    </p>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">Reports — {{ selectedGroup.title }}</div>
+  <div class="panel-body">
+    <p class="reason-text">Reports made by members of this group. The Super Admin decides each one.</p>
+    <table class="list-table" *ngIf="reportsForGroup.length; else noReports">
+      <thead>
+        <tr><th>Reported User</th><th>Reported By</th><th>Reason</th><th>Message</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let rp of reportsForGroup">
+          <td>{{ requesterName(rp.reportedUserId) }}</td>
+          <td>{{ requesterName(rp.reporterId) }}</td>
+          <td>{{ rp.reason }}</td>
+          <td>{{ rp.messageText || '--' }}</td>
+          <td>
+            <span class="badge" [ngClass]="rp.status === 'open' ? 'badge-user' : (rp.status === 'resolved' ? 'badge-online' : 'badge-offline')">{{ rp.status }}</span>
+            <span *ngIf="rp.decisionNote" class="reason-text"> — {{ rp.decisionNote }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #noReports><p class="empty-text">No reports for this group.</p></ng-template>
   </div>
 </div>
       <div class="panel">
@@ -110,9 +140,18 @@
                   </span>
                 </td>
                 <td>
-                  <a *ngIf="!isAdmin(m)" (click)="promoteToAdmin(m)">promote</a>
-                  <a *ngIf="isAdmin(m)" (click)="demoteAdmin(m)">demote</a> &middot;
-                  <a (click)="banMember(m)">ban</a>
+                  <!-- An ordinary member can be promoted or banned directly. -->
+                  <ng-container *ngIf="!isAdmin(m)">
+                    <a (click)="promoteToAdmin(m)">promote</a> &middot;
+                    <a (click)="banMember(m)">ban</a>
+                  </ng-container>
+                  <!-- An admin can step down themself (if another admin remains). -->
+                  <a *ngIf="isAdmin(m) && m.id === currentUserId" (click)="demoteAdmin(m)">step down as admin</a>
+                  <!-- Another admin can only be removed or banned by asking the Super Admin. -->
+                  <ng-container *ngIf="isAdmin(m) && m.id !== currentUserId">
+                    <a (click)="requestAdminRemoval(m, 'remove')">request removal</a> &middot;
+                    <a (click)="requestAdminRemoval(m, 'ban')">request ban</a>
+                  </ng-container>
                 </td>
               </tr>
             </tbody>
@@ -132,7 +171,34 @@
           <label>Age Limit (0 = none)</label>
           <input type="number" [(ngModel)]="selectedGroup.ageLimit" />
 
+          <label>Chat Background Colour (optional)</label>
+          <div>
+            <input type="color" [ngModel]="selectedGroup.theme || '#ffffff'" (ngModelChange)="selectedGroup.theme = $event" />
+            <span class="reason-text"> {{ selectedGroup.theme ? selectedGroup.theme : 'no colour set' }}</span>
+            <a *ngIf="selectedGroup.theme" (click)="clearTheme()"> &middot; remove colour</a>
+          </div>
+
           <button class="btn btn-primary" (click)="saveGroupSettings()">Save Settings</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Channels — {{ selectedGroup.title }}</div>
+        <div class="panel-body">
+          <table class="list-table">
+            <thead>
+              <tr><th>Channel</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let ch of channelsForGroup">
+                <td># {{ ch.name }}</td>
+                <td>
+                  <a *ngIf="channelsForGroup.length > 1" (click)="deleteChannel(ch)">delete</a>
+                  <span *ngIf="channelsForGroup.length <= 1" class="reason-text">a group must keep one channel</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 

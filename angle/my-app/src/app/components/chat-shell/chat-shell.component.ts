@@ -12,6 +12,8 @@ import { ChannelService } from '../../services/channel.service';
 import { UserService } from '../../services/user.service';
 import { MessageService } from '../../services/message.service';
 import { UploadService } from '../../services/upload.service';
+import { ReportService } from '../../services/report.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-chat-shell',
@@ -31,8 +33,16 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   // belongs to. allGroups is worked out from these two.
   private everyGroup: Group[] = [];
   private myGroupIds: string[] = [];
+  // Users this person has blocked; read from the server on load.
+  blockedUserIds: string[] = [];
+  // How many notifications from the Super Admin are unread.
+  unreadNotifications = 0;
   allChannels: Channel[] = [];
-  onlineUsers: User[] = [];
+  // Every user, and the ids of those online right now. The ids
+  // start from the server's list and are then kept up to date by
+  // the presenceChanged socket event.
+  allUsers: User[] = [];
+  private onlineUserIds = new Set<string>();
 
   activeGroupId = '';
   activeChannelId = '';
@@ -58,6 +68,8 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     private userService: UserService,
     private messageService: MessageService,
     private uploadService: UploadService,
+    private reportService: ReportService,
+    private notificationService: NotificationService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -92,6 +104,57 @@ export class ChatShellComponent implements OnInit, OnDestroy {
 
     this.refreshCurrentUser();
 
+    // Tell the server which user this tab belongs to, so it counts
+    // as one of their connections for "Online Now". 'connect' also
+    // fires if the connection drops and comes back, when the server
+    // has forgotten this tab and needs telling again.
+    this.announcePresence();
+    this.socketService.getSocket().on('connect', () => {
+      this.announcePresence();
+      if (this.activeChannelId) {
+        this.socketService.getSocket().emit('joinChannel', {
+          channelId: this.activeChannelId,
+          userId: this.currentUserId,
+          username: this.currentUsername
+        });
+      }
+    });
+
+    // Someone came online or went offline.
+    this.socketService.getSocket().on('presenceChanged', (data: { userId: string; online: boolean }) => {
+      if (data.online) {
+        this.onlineUserIds.add(data.userId);
+      } else {
+        this.onlineUserIds.delete(data.userId);
+      }
+      this.cdr.markForCheck();
+    });
+
+    // The Super Admin sent a notification that this user can read.
+    this.socketService.getSocket().on('notification', () => {
+      this.unreadNotifications = this.unreadNotifications + 1;
+      this.cdr.markForCheck();
+    });
+
+    // A Group Admin deleted a channel: drop it from the list, and
+    // if it was the one open here, close it and say why.
+    this.socketService.getSocket().on('channelDeleted', (data: { id: string; name: string }) => {
+      this.allChannels = this.allChannels.filter(c => c.id !== data.id);
+      if (this.activeChannelId === data.id) {
+        this.activeChannelId = '';
+        this.messages = [];
+        this.systemMessages = [];
+        this.channelNotice = `The channel "${data.name}" was deleted by a group admin.`;
+      }
+      this.cdr.markForCheck();
+    });
+
+    // This user's groups, role or ban status changed on the server
+    // (an approval, a promotion, a ban), so re-read the account.
+    this.socketService.getSocket().on('membershipChanged', () => {
+      this.refreshCurrentUser();
+    });
+
     this.socketService.getSocket().on('newMessage', (message: ChatMessage) => {
       this.messages.push(message);
       this.cdr.markForCheck();
@@ -119,26 +182,92 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     });
 
-    this.socketService.getSocket().on('userJoined', (data: { channelId: string; username: string; timestamp: string }) => {
+    this.socketService.getSocket().on('userJoined', (data: { channelId: string; userId?: string; username: string; timestamp: string }) => {
       this.systemMessages.push({
         id: 's' + Date.now(),
         channelId: data.channelId,
         type: 'join',
+        userId: data.userId,
         username: data.username,
         timestamp: data.timestamp
       });
       this.cdr.markForCheck();
     });
 
-    this.socketService.getSocket().on('userLeft', (data: { channelId: string; username: string; timestamp: string }) => {
+    this.socketService.getSocket().on('userLeft', (data: { channelId: string; userId?: string; username: string; timestamp: string }) => {
       this.systemMessages.push({
         id: 's' + Date.now(),
         channelId: data.channelId,
         type: 'leave',
+        userId: data.userId,
         username: data.username,
         timestamp: data.timestamp
       });
       this.cdr.markForCheck();
+    });
+  }
+
+  // Tells the server which user this browser tab belongs to.
+  private announcePresence(): void {
+    this.socketService.getSocket().emit('identify', { userId: this.currentUserId });
+  }
+
+  // The group whose channel is open, or undefined if none is.
+  get currentGroup(): Group | undefined {
+    const channel = this.activeChannel;
+    return channel ? this.allGroups.find(g => g.id === channel.groupId) : undefined;
+  }
+
+  // "Online Now": the members of the group being viewed, each
+  // marked online or offline, with the people who are online first.
+  get groupMembers(): { id: string; displayName: string; online: boolean; isAdmin: boolean }[] {
+    const group = this.currentGroup;
+    if (!group) {
+      return [];
+    }
+    return this.allUsers
+      .filter(u => (u.groupIds || []).includes(group.id))
+      .map(u => ({
+        id: u.id,
+        displayName: u.displayName,
+        // This user is online by definition: they are looking at the page.
+        online: u.id === this.currentUserId || this.onlineUserIds.has(u.id),
+        isAdmin: (group.adminIds || []).includes(u.id)
+      }))
+      .sort((a, b) => Number(b.online) - Number(a.online) || a.displayName.localeCompare(b.displayName));
+  }
+
+  // Asks the group's admins to remove or ban another member, with
+  // a reason. Nothing happens to the member unless an admin
+  // approves it on the Group Admin page.
+  requestMemberAction(member: { id: string; displayName: string }, action: 'remove' | 'ban'): void {
+    const group = this.currentGroup;
+    if (!group || member.id === this.currentUserId) {
+      return;
+    }
+    const reason = prompt(`Why should ${member.displayName} be ${action === 'ban' ? 'banned from' : 'removed from'} ${group.title}?`);
+    if (reason === null) {
+      return;
+    }
+    if (!reason.trim()) {
+      this.channelNotice = 'A request needs a reason.';
+      return;
+    }
+    this.groupService.submitBanRequest({
+      requestedBy: this.currentUserId,
+      targetUserId: member.id,
+      groupId: group.id,
+      action,
+      reason
+    }).subscribe({
+      next: () => {
+        this.channelNotice = `Your request about ${member.displayName} has been sent to the group's admins.`;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.channelNotice = err.error?.message || 'Your request could not be sent.';
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -148,7 +277,8 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   // then only exist on the server.
   private refreshCurrentUser(): void {
     this.userService.getUsers().subscribe(users => {
-      this.onlineUsers = users;
+      this.allUsers = users;
+      this.onlineUserIds = new Set(users.filter(u => u.online).map(u => u.id));
 
       const freshUser = users.find(u => u.id === this.currentUserId);
       if (!freshUser) {
@@ -167,7 +297,76 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       this.currentUsername = freshUser.displayName || freshUser.username;
       this.currentRole = freshUser.role;
       this.myGroupIds = freshUser.groupIds;
+      this.blockedUserIds = freshUser.blockedUserIds || [];
       this.applyMembership();
+      this.countUnreadNotifications(freshUser.notificationsReadAt || '');
+    });
+  }
+
+  // Counts the Super Admin's notifications this user hasn't opened
+  // yet: those sent after they last visited the Notifications
+  // page. ISO dates compare correctly as plain text.
+  private countUnreadNotifications(lastReadAt: string): void {
+    this.notificationService.getNotificationsFor(this.currentUserId).subscribe(notifications => {
+      this.unreadNotifications = notifications.filter(n => n.createdAt > lastReadAt).length;
+      this.cdr.markForCheck();
+    });
+  }
+
+  // Blocks the sender of a message. From then on their messages
+  // and join/leave notices are hidden for this user only. The block
+  // is saved on the server, so it survives logging out. It can be
+  // undone on the Profile page.
+  blockSender(message: ChatMessage): void {
+    if (message.senderId === this.currentUserId) {
+      return;
+    }
+    if (!confirm(`Block ${message.senderName}? You will no longer see their messages. You can unblock them on your profile.`)) {
+      return;
+    }
+    this.userService.blockUser(this.currentUserId, message.senderId).subscribe({
+      next: () => {
+        this.blockedUserIds = [...this.blockedUserIds, message.senderId];
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.channelNotice = err.error?.message || 'That user could not be blocked.';
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  // Reports the sender of a message to the Super Admin, with a
+  // reason. A copy of the message goes with the report, because
+  // only the last 5 messages of a channel are kept.
+  reportSender(message: ChatMessage): void {
+    const channel = this.activeChannel;
+    if (message.senderId === this.currentUserId || !channel) {
+      return;
+    }
+    const reason = prompt(`Why are you reporting ${message.senderName}?`);
+    if (reason === null) {
+      return;
+    }
+    if (!reason.trim()) {
+      this.channelNotice = 'A report needs a reason.';
+      return;
+    }
+    this.reportService.submitReport({
+      reporterId: this.currentUserId,
+      reportedUserId: message.senderId,
+      groupId: channel.groupId,
+      reason,
+      messageText: message.text || (message.imageUrl ? '(image)' : '')
+    }).subscribe({
+      next: () => {
+        this.channelNotice = `Your report about ${message.senderName} has been sent to the Super Admin.`;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.channelNotice = err.error?.message || 'Your report could not be sent.';
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -191,6 +390,11 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     socket.off('userLeft');
     socket.off('channelDenied');
     socket.off('messageDeleted');
+    socket.off('connect');
+    socket.off('presenceChanged');
+    socket.off('membershipChanged');
+    socket.off('channelDeleted');
+    socket.off('notification');
 
     if (this.activeChannelId) {
       socket.emit('leaveChannel', {
@@ -208,9 +412,15 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     return this.allChannels.find(c => c.id === this.activeChannelId);
   }
 
+  // What the thread shows: this channel's messages and join/leave
+  // notices in time order, leaving out anything from a user this
+  // person has blocked. Blocked content is simply not there; no
+  // placeholder is shown.
   get threadItems(): (ChatMessage | SystemMessage)[] {
-    const chatItems = this.messages.filter(m => m.channelId === this.activeChannelId);
-    const systemItems = this.systemMessages.filter(s => s.channelId === this.activeChannelId);
+    const chatItems = this.messages.filter(m =>
+      m.channelId === this.activeChannelId && !this.blockedUserIds.includes(m.senderId));
+    const systemItems = this.systemMessages.filter(s =>
+      s.channelId === this.activeChannelId && !(s.userId && this.blockedUserIds.includes(s.userId)));
     return [...chatItems, ...systemItems].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
 

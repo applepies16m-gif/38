@@ -3,10 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {Router, RouterLink } from '@angular/router';
 import { User } from '../../models/user.model';
-import { Group, GroupCreationRequest } from '../../models/group.model';
+import { Group, GroupCreationRequest, BanRequest } from '../../models/group.model';
 import { UserService } from '../../services/user.service';
 import { GroupService } from '../../services/group.service';
 import { AuthService } from '../../services/auth.service';
+import { ReportService } from '../../services/report.service';
+import { Report } from '../../models/report.model';
+import { NotificationService } from '../../services/notification.service';
+import { AppNotification } from '../../models/notification.model';
 import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of-birth';
 
 @Component({
@@ -21,6 +25,18 @@ export class AdminPanelComponent implements OnInit {
   groups: Group[] = [];
 
   groupRequests: GroupCreationRequest[] = [];
+
+  // Reports made by users about other users, newest first.
+  reports: Report[] = [];
+
+  // Every remove/ban request; this page only shows the ones that
+  // are about a Group Admin.
+  banRequests: BanRequest[] = [];
+
+  // The notification being written, and those already sent.
+  notificationMessage = '';
+  notificationRecipientId = ''; // empty = everyone
+  sentNotifications: AppNotification[] = [];
 
   newUsername = '';
   newFirstName = '';
@@ -37,7 +53,9 @@ export class AdminPanelComponent implements OnInit {
     private groupService: GroupService,
     private cdr: ChangeDetectorRef,
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
+    private reportService: ReportService,
+    private notificationService: NotificationService
   ) {}
 
  ngOnInit(): void {
@@ -64,6 +82,158 @@ export class AdminPanelComponent implements OnInit {
     this.groupService.getGroupRequests().subscribe(requests => {
       this.groupRequests = requests;
       this.cdr.markForCheck();
+    });
+    this.reportService.getReports().subscribe(reports => {
+      this.reports = reports;
+      this.cdr.markForCheck();
+    });
+    this.groupService.getBanRequests().subscribe(requests => {
+      this.banRequests = requests;
+      this.cdr.markForCheck();
+    });
+    this.notificationService.getAllNotifications().subscribe(notifications => {
+      this.sentNotifications = notifications;
+      this.cdr.markForCheck();
+    });
+  }
+
+  // Sends a one-way notification to everyone, or to the one user
+  // chosen in the "To" box. Users read it on their Notifications
+  // page; there is no way for them to reply.
+  sendNotification(): void {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser) {
+      return;
+    }
+    if (!this.notificationMessage.trim()) {
+      alert('Write a message to send.');
+      return;
+    }
+    this.notificationService.sendNotification(
+      currentUser.id, this.notificationMessage, this.notificationRecipientId || null
+    ).subscribe({
+      next: (sent) => {
+        this.sentNotifications = [sent, ...this.sentNotifications];
+        this.notificationMessage = '';
+        this.notificationRecipientId = '';
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The notification could not be sent.');
+      }
+    });
+  }
+
+  // Shows an ISO date as a short local date and time.
+  formatDate(isoDate: string): string {
+    const date = new Date(isoDate);
+    return isNaN(date.getTime()) ? isoDate : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  // Ends the Super Admin's session.
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
+  }
+
+  // Requests from one Group Admin to remove or ban another admin
+  // of the same group. Only the Super Admin can decide these.
+  get adminRemovalRequests(): BanRequest[] {
+    return this.banRequests.filter(r => r.reviewer === 'super_admin' && r.status === 'pending');
+  }
+
+  // Approves a request to remove or ban a Group Admin. The server
+  // takes them out of the group and its admin list, and refuses if
+  // that would leave the group with no admin.
+  approveAdminRemoval(req: BanRequest): void {
+    this.groupService.updateBanRequest(req.id, 'approved').subscribe({
+      next: () => {
+        req.status = 'approved';
+        // Roles and memberships changed on the server, so re-read
+        // the Users and Groups tables.
+        this.userService.getUsers().subscribe(users => {
+          this.users = users;
+          this.cdr.markForCheck();
+        });
+        this.groupService.getGroups().subscribe(groups => {
+          this.groups = groups;
+          this.cdr.markForCheck();
+        });
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The request could not be approved.');
+      }
+    });
+  }
+
+  // Rejects a request to remove or ban a Group Admin, with a reason.
+  rejectAdminRemoval(req: BanRequest): void {
+    const reason = prompt('Reason for rejecting this request?');
+    if (reason === null) {
+      return;
+    }
+    this.groupService.updateBanRequest(req.id, 'rejected', reason).subscribe({
+      next: () => {
+        req.status = 'rejected';
+        req.rejectionReason = reason;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The request could not be rejected.');
+      }
+    });
+  }
+
+  // Title of a group, for tables that only hold its id.
+  groupTitle(groupId: string): string {
+    return this.groups.find(g => g.id === groupId)?.title || groupId;
+  }
+
+  // Records the Super Admin's decision on a report: 'resolved'
+  // (something was done) or 'dismissed' (nothing needed), with an
+  // optional note that the group's admins can read.
+  decideReport(report: Report, status: 'resolved' | 'dismissed'): void {
+    const note = prompt(`Note for this decision (${status}), or leave empty:`);
+    if (note === null) {
+      return;
+    }
+    this.saveReportDecision(report, status, note);
+  }
+
+  // Bans the reported user from the whole system and marks the
+  // report resolved in one step.
+  banReportedUser(report: Report): void {
+    const user = this.users.find(u => u.id === report.reportedUserId);
+    if (!user) {
+      alert('That user no longer exists.');
+      return;
+    }
+    if (!confirm(`Ban ${user.displayName} from the entire system and resolve this report?`)) {
+      return;
+    }
+    this.userService.updateUser(user.id, { isSystemBanned: true }).subscribe({
+      next: () => {
+        user.isSystemBanned = true;
+        this.saveReportDecision(report, 'resolved', 'User banned from the system.');
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The user could not be banned.');
+      }
+    });
+  }
+
+  // Sends a report decision to the server, then updates the row.
+  private saveReportDecision(report: Report, status: 'resolved' | 'dismissed', note: string): void {
+    this.reportService.decideReport(report.id, status, note).subscribe({
+      next: () => {
+        report.status = status;
+        report.decisionNote = note;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The decision could not be saved.');
+      }
     });
   }
 

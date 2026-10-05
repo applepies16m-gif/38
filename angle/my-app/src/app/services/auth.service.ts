@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { User } from '../models/user.model';
+import { SocketService } from './socket.service';
 
 const STORAGE_KEY = 'fabulari_currentUser';
 
@@ -12,6 +13,7 @@ const STORAGE_KEY = 'fabulari_currentUser';
   providedIn: 'root'
 })
 export class AuthService {
+  constructor(private socketService: SocketService) {}
 
   login(user: User): void {
     // Never keep the password in browser storage, even though the
@@ -20,7 +22,12 @@ export class AuthService {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(safeUser));
   }
 
+  // Ends the session. The socket stays open while the tab does, so
+  // the server is told this tab no longer belongs to anyone;
+  // otherwise the user would keep showing as online after logging
+  // out.
   logout(): void {
+    this.socketService.getSocket().emit('signOut');
     localStorage.removeItem(STORAGE_KEY);
   }
 

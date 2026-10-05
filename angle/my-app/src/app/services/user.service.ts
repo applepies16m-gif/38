@@ -30,6 +30,17 @@ updateUser(id: string, updates: Partial<User>): Observable<void> {
     return this.http.post<User>(API_URL, user);
   }
 
+  // Blocks another user for this user. The block is saved on the
+  // server, so it is still there after logging out and in.
+  blockUser(id: string, blockedUserId: string): Observable<void> {
+    return this.http.post<void>(`${API_URL}/${id}/blocks`, { blockedUserId });
+  }
+
+  // Removes a block.
+  unblockUser(id: string, blockedUserId: string): Observable<void> {
+    return this.http.delete<void>(`${API_URL}/${id}/blocks/${blockedUserId}`);
+  }
+
   deleteUser(id: string): Observable<void> {
     return this.http.delete<void>(`${API_URL}/${id}`);
   }

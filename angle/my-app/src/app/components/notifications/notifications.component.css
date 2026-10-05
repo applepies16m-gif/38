@@ -1,0 +1,58 @@
+/* Same page frame as the other pages: blue bar across the top,
+   one centred column of panels below. */
+.page {
+  min-height: 100vh;
+}
+
+.top-bar {
+  background: linear-gradient(to bottom, #4a6bab, var(--chrome-blue));
+  border-bottom: 1px solid var(--chrome-blue-dark);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+}
+
+.page-title {
+  font-size: 12px;
+  opacity: 0.9;
+  flex: 1;
+}
+
+.back-link {
+  color: #dbe4f5;
+  font-size: 11px;
+}
+
+.back-link:hover {
+  color: #fff;
+}
+
+.page-body {
+  max-width: 760px;
+  margin: 14px auto;
+  padding: 0 10px;
+}
+
+.note {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin: 0 0 8px;
+}
+
+/* One notification: when it was sent, then the message. */
+.notification {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.when {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-bottom: 3px;
+}
+
+.message {
+  white-space: pre-wrap;
+}

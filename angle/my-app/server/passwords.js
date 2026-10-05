@@ -20,7 +20,7 @@ const HASH_ROUNDS = 10;
 const BACKUP_DIR = path.join(__dirname, 'backups');
 
 // The collections saved by a backup.
-const BACKUP_COLLECTIONS = ['users', 'groups', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests'];
+const BACKUP_COLLECTIONS = ['users', 'groups', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests', 'reports'];
 
 // Every bcrypt hash has this shape: $2a$ or $2b$, the rounds, then
 // 53 characters. Anything else in the password field is plain text.

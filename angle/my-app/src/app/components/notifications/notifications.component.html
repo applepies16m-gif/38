@@ -1,0 +1,28 @@
+<div class="page">
+
+  <div class="top-bar">
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <span class="page-title">Notifications</span>
+    <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
+  </div>
+
+  <div class="page-body">
+    <div class="panel">
+      <div class="panel-header">From the Super Admin</div>
+      <div class="panel-body">
+        <p class="note">These are announcements. You can't reply to them.</p>
+
+        <div class="notification" *ngFor="let n of notifications">
+          <div class="when">
+            {{ formatDate(n.createdAt) }}
+            <span class="badge" [ngClass]="n.recipientId ? 'badge-admin' : 'badge-user'">{{ n.recipientId ? 'to you' : 'to everyone' }}</span>
+          </div>
+          <div class="message">{{ n.message }}</div>
+        </div>
+
+        <p class="note" *ngIf="loaded && notifications.length === 0">No notifications yet.</p>
+      </div>
+    </div>
+  </div>
+
+</div>

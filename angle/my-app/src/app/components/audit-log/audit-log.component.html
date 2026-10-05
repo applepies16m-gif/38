@@ -1,0 +1,57 @@
+<div class="page">
+
+  <div class="top-bar">
+    <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
+    <span class="page-title">Audit Log</span>
+    <a routerLink="/admin" class="back-link">&larr; Back to Admin Panel</a>
+  </div>
+
+  <div class="page-body">
+
+    <div class="panel">
+      <div class="panel-header">Filter</div>
+      <div class="panel-body filter-row">
+        <label>
+          Action
+          <select [(ngModel)]="filterType">
+            <option value="">All actions</option>
+            <option *ngFor="let t of actionTypes" [value]="t.value">{{ t.label }}</option>
+          </select>
+        </label>
+        <label>
+          From
+          <input type="date" [(ngModel)]="filterFrom" />
+        </label>
+        <label>
+          To
+          <input type="date" [(ngModel)]="filterTo" />
+        </label>
+        <button class="btn btn-primary" (click)="loadEntries()">Apply</button>
+        <button class="btn" (click)="clearFilters()">Clear</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Admin Actions ({{ entries.length }})</div>
+      <div class="panel-body">
+        <table class="list-table" *ngIf="entries.length; else noEntries">
+          <thead>
+            <tr><th>When</th><th>Who</th><th>Action</th><th>Details</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let e of entries">
+              <td class="when">{{ formatDate(e.createdAt) }}</td>
+              <td>{{ e.actorName }}<span class="role" *ngIf="e.actorRole"> ({{ e.actorRole }})</span></td>
+              <td>{{ typeLabel(e.type) }}</td>
+              <td>{{ e.summary }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #noEntries>
+          <p class="note" *ngIf="loaded">No admin actions match these filters.</p>
+        </ng-template>
+      </div>
+    </div>
+
+  </div>
+</div>

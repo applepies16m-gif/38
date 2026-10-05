@@ -42,8 +42,10 @@ export interface GroupCreationRequest {
 export interface BanRequest {
   id: string;
   requestedBy: string;   // userId of the member requesting the ban
-  targetUserId: string;  // userId being reported
+  targetUserId: string;  // userId the request is about
   groupId: string;
+  action?: 'remove' | 'ban';                  // remove = out of the group; ban = also can't rejoin. Old requests have none and mean ban
+  reviewer?: 'group_admin' | 'super_admin';   // who decides: the Super Admin when the target is a Group Admin
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;

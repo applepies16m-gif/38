@@ -13,4 +13,6 @@ export interface User {
   groupIds: string[];
   bannedFromGroupIds: string[];
   isSystemBanned: boolean;
+  blockedUserIds?: string[]; // users whose messages this user has chosen not to see
+  notificationsReadAt?: string; // ISO date the user last opened their notifications
 }

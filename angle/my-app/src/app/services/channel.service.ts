@@ -18,4 +18,10 @@ export class ChannelService {
   createChannel(channel: Partial<Channel>): Observable<Channel> {
     return this.http.post<Channel>(API_URL, channel);
   }
+
+  // Deletes a channel and its messages. The server refuses to
+  // delete a group's last channel.
+  deleteChannel(id: string): Observable<void> {
+    return this.http.delete<void>(`${API_URL}/${id}`);
+  }
 }

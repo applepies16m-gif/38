@@ -73,6 +73,17 @@
     </div>
 
     <div class="panel">
+      <div class="panel-header">Blocked Users</div>
+      <div class="panel-body">
+        <p class="helper-text">You don't see messages or join/leave notices from these users. Block someone from the "block" link beside their message in chat.</p>
+        <p class="helper-text" *ngIf="blockedUsers.length === 0">You haven't blocked anyone.</p>
+        <div *ngFor="let b of blockedUsers">
+          {{ b.name }} &middot; <a (click)="unblock(b.id)">unblock</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="panel-header">Delete My Account</div>
       <div class="panel-body">
         <p class="helper-text">

@@ -8,6 +8,8 @@ import { ProfileComponent } from './components/profile/profile.component';
 import { RegisterComponent } from './components/register/register.component';
 import { BootstrapComponent } from './components/bootstrap/bootstrap.component';
 import { BrowseGroupsComponent } from './components/browse-groups/browse-groups.component';
+import { NotificationsComponent } from './components/notifications/notifications.component';
+import { AuditLogComponent } from './components/audit-log/audit-log.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -20,4 +22,6 @@ export const routes: Routes = [
   { path: 'register', component: RegisterComponent },
   { path: 'bootstrap', component: BootstrapComponent },
   { path: 'browse-groups', component: BrowseGroupsComponent },
+  { path: 'notifications', component: NotificationsComponent },
+  { path: 'audit-log', component: AuditLogComponent },
 ];

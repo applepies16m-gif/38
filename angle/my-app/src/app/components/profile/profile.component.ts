@@ -34,6 +34,9 @@ export class ProfileComponent implements OnInit {
   dateOfBirth = '';
   dateOfBirthLocked = false;
 
+  // Users this person has blocked in chat, with names for display.
+  blockedUsers: { id: string; name: string }[] = [];
+
   saved = false;
   profileError = '';
   deleteError = '';
@@ -97,6 +100,25 @@ ngOnInit(): void {
       }
       this.authService.login(freshUser);
       this.showUser(freshUser);
+
+      // The account only holds the ids of blocked users; look up
+      // their names for the Blocked Users list.
+      this.blockedUsers = (freshUser.blockedUserIds || []).map(id => ({
+        id,
+        name: users.find(u => u.id === id)?.displayName || 'deleted user'
+      }));
+      this.cdr.markForCheck();
+    });
+  }
+
+  // Removes a block, so that user's messages are shown again.
+  unblock(blockedUserId: string): void {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser) {
+      return;
+    }
+    this.userService.unblockUser(currentUser.id, blockedUserId).subscribe(() => {
+      this.refreshFromServer(currentUser.id);
     });
   }
 

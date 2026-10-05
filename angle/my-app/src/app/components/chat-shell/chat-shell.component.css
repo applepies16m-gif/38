@@ -93,6 +93,16 @@
   padding-bottom: 8px;
   border-bottom: 1px solid #f2f4f7;
 }
+
+/* When the group has a colour theme the thread takes that colour.
+   Messages and notices sit on light cards so the text stays
+   readable whatever colour the admin picked. */
+.thread.themed .msg-row,
+.thread.themed .system-row {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--panel-border);
+  padding: 6px 8px;
+}
 .system-row {
   text-align: center;
   font-size: 11px;

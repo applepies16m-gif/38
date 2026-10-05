@@ -3,7 +3,8 @@
   <div class="top-bar">
     <img src="fabulari-logo.png" alt="Fabulari" class="brand-logo-img" />
     <span class="admin-title">Admin Control Panel</span>
-    <a routerLink="/chat" class="back-link">&larr; Back to Chat</a>
+    <a routerLink="/audit-log" class="back-link">Audit Log</a>
+    <a (click)="logout()" class="back-link">Log Out</a>
   </div>
 
   <div class="admin-body">
@@ -129,6 +130,93 @@
     <ng-template #noGroupReq><p class="empty-text">No pending group requests.</p></ng-template>
   </div>
 </div>
+
+    <div class="panel">
+      <div class="panel-header">Send a Notification</div>
+      <div class="panel-body">
+        <p class="reason-text">A one-way announcement. Users read it on their Notifications page and can't reply.</p>
+        <div class="form-row">
+          <label>
+            To
+            <select [(ngModel)]="notificationRecipientId">
+              <option value="">Everyone</option>
+              <option *ngFor="let u of possibleGroupAdmins" [value]="u.id">{{ u.displayName }} ({{ u.username }})</option>
+            </select>
+          </label>
+          <input type="text" placeholder="Message (up to 500 characters)" maxlength="500" [(ngModel)]="notificationMessage" />
+          <button class="btn btn-primary" (click)="sendNotification()">Send</button>
+        </div>
+        <table class="list-table" *ngIf="sentNotifications.length" style="margin-top: 8px;">
+          <thead>
+            <tr><th>Sent</th><th>To</th><th>Message</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let n of sentNotifications">
+              <td>{{ formatDate(n.createdAt) }}</td>
+              <td>{{ n.recipientId ? userName(n.recipientId) : 'Everyone' }}</td>
+              <td>{{ n.message }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Group Admin Removal Requests</div>
+      <div class="panel-body">
+        <p class="reason-text">A Group Admin can only be removed or banned when another admin of the same group asks and you approve it here.</p>
+        <table class="list-table" *ngIf="adminRemovalRequests.length; else noAdminRemoval">
+          <thead>
+            <tr><th>Group Admin</th><th>Group</th><th>Asked For</th><th>Requested By</th><th>Reason</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let ar of adminRemovalRequests">
+              <td>{{ userName(ar.targetUserId) }}</td>
+              <td>{{ groupTitle(ar.groupId) }}</td>
+              <td>{{ ar.action === 'remove' ? 'remove from group' : 'ban from group' }}</td>
+              <td>{{ userName(ar.requestedBy) }}</td>
+              <td>{{ ar.reason }}</td>
+              <td>
+                <a (click)="approveAdminRemoval(ar)">approve</a> &middot;
+                <a (click)="rejectAdminRemoval(ar)">reject</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #noAdminRemoval><p class="empty-text">No pending requests.</p></ng-template>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">User Reports</div>
+      <div class="panel-body">
+        <table class="list-table" *ngIf="reports.length; else noReports">
+          <thead>
+            <tr><th>Reported User</th><th>Reported By</th><th>Group</th><th>Reason</th><th>Message</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let rp of reports">
+              <td>{{ userName(rp.reportedUserId) }}</td>
+              <td>{{ userName(rp.reporterId) }}</td>
+              <td>{{ groupTitle(rp.groupId) }}</td>
+              <td>{{ rp.reason }}</td>
+              <td>{{ rp.messageText || '--' }}</td>
+              <td>
+                <span class="badge" [ngClass]="rp.status === 'open' ? 'badge-user' : (rp.status === 'resolved' ? 'badge-online' : 'badge-offline')">{{ rp.status }}</span>
+                <span *ngIf="rp.decisionNote" class="reason-text"> — {{ rp.decisionNote }}</span>
+              </td>
+              <td *ngIf="rp.status === 'open'">
+                <a (click)="decideReport(rp, 'resolved')">resolve</a> &middot;
+                <a (click)="decideReport(rp, 'dismissed')">dismiss</a> &middot;
+                <a (click)="banReportedUser(rp)">ban user</a>
+              </td>
+              <td *ngIf="rp.status !== 'open'"></td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #noReports><p class="empty-text">No reports.</p></ng-template>
+      </div>
+    </div>
 
   </div>
 </div>

@@ -94,7 +94,75 @@ function toClientShape(doc) {
 // never with the password, even though it is stored as a hash.
 function toSafeUser(doc) {
   const { password, ...safeUser } = toClientShape(doc);
-  return safeUser;
+  // "online" is worked out from live connections, not stored.
+  return { ...safeUser, online: isOnline(safeUser.id) };
+}
+
+// --- Presence (who is online) ---
+
+// How many open connections each user has: one per browser tab
+// that has the app open. A user is online while this is 1 or more.
+// Counting, not a simple yes/no flag, is what stops a second tab
+// being closed from marking someone offline while the first is
+// still open.
+const connectionsByUser = new Map();
+
+// Every socket of a user also joins a room named after them, so
+// the server can reach all of one user's tabs at once.
+function userRoom(userId) {
+  return 'user:' + userId;
+}
+
+function isOnline(userId) {
+  return (connectionsByUser.get(userId) || 0) > 0;
+}
+
+// Counts one more connection for a user. Everyone is told only
+// when this takes them from offline to online.
+function addConnection(userId) {
+  const count = (connectionsByUser.get(userId) || 0) + 1;
+  connectionsByUser.set(userId, count);
+  if (count === 1) {
+    io.emit('presenceChanged', { userId, online: true });
+  }
+}
+
+// Counts one fewer. Everyone is told only when the last one closes.
+function removeConnection(userId) {
+  const count = (connectionsByUser.get(userId) || 0) - 1;
+  if (count <= 0) {
+    connectionsByUser.delete(userId);
+    io.emit('presenceChanged', { userId, online: false });
+  } else {
+    connectionsByUser.set(userId, count);
+  }
+}
+
+// Stops counting a socket as a connection of the user it
+// identified as (on logout, or when the tab closes).
+function signOutSocket(socket) {
+  if (socket.data.presenceCounted) {
+    socket.leave(userRoom(socket.data.presenceUserId));
+    removeConnection(socket.data.presenceUserId);
+  }
+  socket.data.presenceUserId = undefined;
+  socket.data.presenceCounted = false;
+}
+
+// Called after a user's group membership or ban status changes.
+// Each of their open tabs is told to re-read their account, and a
+// tab sitting in a channel they may no longer use is taken out of
+// it straight away, without waiting for them to send a message.
+async function enforceAccess(userId) {
+  const sockets = await io.in(userRoom(userId)).fetchSockets();
+  for (const userSocket of sockets) {
+    const channelId = userSocket.data.channelId;
+    if (channelId && userSocket.rooms.has(channelId) && !(await canUseChannel(userId, channelId))) {
+      userSocket.leave(channelId);
+      userSocket.emit('channelDenied', { channelId, message: CHANNEL_DENIED_MESSAGE });
+    }
+    userSocket.emit('membershipChanged');
+  }
 }
 
 // Returns a message's timestamp as an ISO string. Messages saved
@@ -472,6 +540,15 @@ function checkGroupFields(fields, isNew) {
     }
   }
 
+  // The optional colour theme is either empty (no theme) or a
+  // colour written the way a colour picker gives it: #rrggbb.
+  if (fields.theme !== undefined) {
+    const isColour = typeof fields.theme === 'string' && /^#[0-9a-fA-F]{6}$/.test(fields.theme);
+    if (fields.theme !== '' && !isColour) {
+      return 'Group colour must be a colour such as #a1c4fd, or empty for none.';
+    }
+  }
+
   // The age limit must be a whole number. 0 means no limit. A form
   // may send it as text ("15"), so it is converted to a number.
   if (fields.ageLimit !== undefined) {
@@ -573,6 +650,11 @@ app.post('/api/users', async (req, res) => {
     isSystemBanned: false
   };
   const result = await getDb().collection('users').insertOne(newUser);
+  // Someone registering themself is not an admin action. When the
+  // request comes from a logged-in user it is the Admin Panel form.
+  if (await findUser(req.get('x-user-id'))) {
+    await logAdminAction(req, 'user_created', `Created the account "${newUser.username}" (${newUser.displayName})`);
+  }
   res.status(201).json(toSafeUser({ ...newUser, _id: result.insertedId }));
 });
 
@@ -613,6 +695,11 @@ app.delete('/api/users/:id', async (req, res) => {
   deleteUploadedImage(user.profilePicUrl);
 
   await users.deleteOne({ _id: user._id });
+  // Any tab still open as this user is put out of its channel and
+  // told to re-read the account, which then logs it out.
+  await enforceAccess(userId);
+  await logAdminAction(req, 'user_deleted',
+    req.get('x-user-id') === userId ? `${name} deleted their own account` : `Deleted the account of ${name} ("${user.username}")`);
   res.status(204).send();
 });
 
@@ -637,6 +724,29 @@ app.put('/api/users/:id', async (req, res) => {
     return res.status(problem.status).json({ message: problem.message });
   }
 
+  // A Group Admin can't be taken out of, or banned from, a group
+  // they administer by a direct change like this one. That has to
+  // go through a request from another admin of the group, which
+  // the Super Admin decides (see the ban-request routes).
+  const leaving = updates.groupIds
+    ? (existing.groupIds || []).filter(id => !updates.groupIds.includes(id))
+    : [];
+  const newlyBanned = updates.bannedFromGroupIds
+    ? updates.bannedFromGroupIds.filter(id => !(existing.bannedFromGroupIds || []).includes(id))
+    : [];
+  const affectedGroupIds = [...new Set([...leaving, ...newlyBanned])].filter(id => ObjectId.isValid(id));
+  if (affectedGroupIds.length > 0) {
+    const administered = await getDb().collection('groups').findOne({
+      _id: { $in: affectedGroupIds.map(id => new ObjectId(id)) },
+      adminIds: existing._id.toString()
+    });
+    if (administered) {
+      return res.status(403).json({
+        message: `${existing.displayName || existing.username} is an admin of "${administered.title}". A Group Admin can only be removed or banned through a request from another admin, reviewed by the Super Admin.`
+      });
+    }
+  }
+
   await getDb().collection('users').updateOne({ _id: existing._id }, { $set: updates });
 
   // A replaced profile picture would never be shown again, so its
@@ -644,6 +754,156 @@ app.put('/api/users/:id', async (req, res) => {
   if (updates.profilePicUrl && existing.profilePicUrl && existing.profilePicUrl !== updates.profilePicUrl) {
     deleteUploadedImage(existing.profilePicUrl);
   }
+
+  // A change to membership or a ban takes effect in the user's
+  // open tabs straight away.
+  if (updates.groupIds !== undefined || updates.bannedFromGroupIds !== undefined ||
+      updates.isSystemBanned !== undefined || updates.role !== undefined) {
+    await enforceAccess(existing._id.toString());
+  }
+
+  // Bans and role changes are admin actions; a user editing their
+  // own profile is not, so only these are written to the audit log.
+  const who = existing.displayName || existing.username;
+  if (updates.isSystemBanned !== undefined && updates.isSystemBanned !== Boolean(existing.isSystemBanned)) {
+    await logAdminAction(req, updates.isSystemBanned ? 'system_ban' : 'system_unban',
+      `${updates.isSystemBanned ? 'Banned' : 'Unbanned'} ${who} ${updates.isSystemBanned ? 'from' : 'on'} the whole system`);
+  }
+  for (const groupId of newlyBanned) {
+    await logAdminAction(req, 'member_banned', `Banned ${who} from ${await titleOfGroup(groupId)}`);
+  }
+  if (updates.role !== undefined && updates.role !== existing.role) {
+    await logAdminAction(req, 'role_changed', `Changed the role of ${who} from ${existing.role} to ${updates.role}`);
+  }
+  res.status(204).send();
+});
+
+// --- Blocking ---
+
+// Looks up one user by id. Returns null if the id is malformed or
+// nobody has it.
+async function findUser(userId) {
+  return typeof userId === 'string' && ObjectId.isValid(userId)
+    ? getDb().collection('users').findOne({ _id: new ObjectId(userId) })
+    : null;
+}
+
+// Blocks a user for the person at :id. The block is saved on the
+// blocker's own account (blockedUserIds), so it lasts across
+// logins. It only changes what the blocker sees: their browser
+// hides the blocked user's messages and notices.
+app.post('/api/users/:id/blocks', async (req, res) => {
+  const blocker = await findUser(req.params.id);
+  const blocked = await findUser((req.body || {}).blockedUserId);
+  if (!blocker || !blocked) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+  if (blocker._id.equals(blocked._id)) {
+    return res.status(400).json({ message: 'You cannot block yourself.' });
+  }
+  await getDb().collection('users').updateOne(
+    { _id: blocker._id },
+    { $addToSet: { blockedUserIds: blocked._id.toString() } }
+  );
+  res.status(204).send();
+});
+
+// Removes a block.
+app.delete('/api/users/:id/blocks/:blockedUserId', async (req, res) => {
+  const blocker = await findUser(req.params.id);
+  if (!blocker) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+  await getDb().collection('users').updateOne(
+    { _id: blocker._id },
+    { $pull: { blockedUserIds: req.params.blockedUserId } }
+  );
+  res.status(204).send();
+});
+
+// --- Reports ---
+
+const MAX_REPORT_REASON_LENGTH = 500;
+
+// All reports, newest first. With ?groupId= only that group's, so
+// a Group Admin's page can show the reports made in their group.
+app.get('/api/reports', async (req, res) => {
+  const filter = typeof req.query.groupId === 'string' ? { groupId: req.query.groupId } : {};
+  const reports = await getDb().collection('reports').find(filter).sort({ _id: -1 }).toArray();
+  res.json(reports.map(toClientShape));
+});
+
+// One user reports another, with a reason. The reporter must be a
+// member of the group it happened in. A copy of the message text
+// is kept with the report, because only the last 5 messages of a
+// channel are stored and the original may be gone when it is read.
+app.post('/api/reports', async (req, res) => {
+  const body = req.body || {};
+  const reporter = await findUser(body.reporterId);
+  const reported = await findUser(body.reportedUserId);
+  if (!reporter || !reported) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+  if (reporter._id.equals(reported._id)) {
+    return res.status(400).json({ message: 'You cannot report yourself.' });
+  }
+  if (!isFilledText(body.reason)) {
+    return res.status(400).json({ message: 'A reason is required.' });
+  }
+  const reason = body.reason.trim();
+  if (reason.length > MAX_REPORT_REASON_LENGTH) {
+    return res.status(400).json({ message: `The reason must be ${MAX_REPORT_REASON_LENGTH} characters or fewer.` });
+  }
+  const group = typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
+    ? await getDb().collection('groups').findOne({ _id: new ObjectId(body.groupId) })
+    : null;
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found.' });
+  }
+  if (!(reporter.groupIds || []).includes(body.groupId)) {
+    return res.status(403).json({ message: 'You can only report someone in a group you belong to.' });
+  }
+
+  const newReport = {
+    reporterId: reporter._id.toString(),
+    reportedUserId: reported._id.toString(),
+    groupId: body.groupId,
+    reason,
+    messageText: typeof body.messageText === 'string' ? body.messageText.slice(0, 1000) : '',
+    status: 'open',
+    createdAt: new Date().toISOString()
+  };
+  const result = await getDb().collection('reports').insertOne(newReport);
+  res.status(201).json(toClientShape({ ...newReport, _id: result.insertedId }));
+});
+
+// The Super Admin's decision on a report: resolved (something was
+// done about it) or dismissed (nothing needed), with an optional
+// note. A report that has been decided can't be decided again.
+app.put('/api/reports/:id', async (req, res) => {
+  const { status, decisionNote } = req.body || {};
+  if (status !== 'resolved' && status !== 'dismissed') {
+    return res.status(400).json({ message: 'Status must be resolved or dismissed.' });
+  }
+  const reports = getDb().collection('reports');
+  const report = ObjectId.isValid(req.params.id)
+    ? await reports.findOne({ _id: new ObjectId(req.params.id) })
+    : null;
+  if (!report) {
+    return res.status(404).json({ message: 'Report not found.' });
+  }
+  if (report.status !== 'open') {
+    return res.status(409).json({ message: 'This report has already been decided.' });
+  }
+  await reports.updateOne({ _id: report._id }, {
+    $set: {
+      status,
+      decisionNote: typeof decisionNote === 'string' ? decisionNote.trim().slice(0, MAX_REPORT_REASON_LENGTH) : '',
+      decidedAt: new Date().toISOString()
+    }
+  });
+  await logAdminAction(req, status === 'resolved' ? 'report_resolved' : 'report_dismissed',
+    `${status === 'resolved' ? 'Resolved' : 'Dismissed'} the report about ${await nameOfUser(report.reportedUserId)} made by ${await nameOfUser(report.reporterId)}`);
   res.status(204).send();
 });
 
@@ -697,7 +957,10 @@ app.post('/api/groups', async (req, res) => {
       changes.$set = { role: 'group_admin' };
     }
     await users.updateOne({ _id: admin._id }, changes);
+    await enforceAccess(admin._id.toString());
   }
+  await logAdminAction(req, 'group_created',
+    `Created the group "${newGroup.title}" with ${admins.map(a => a.displayName || a.username).join(', ')} as admin`);
 
   // Every group needs somewhere to chat from the moment it exists,
   // rather than requiring a separate manual step to add the first
@@ -730,6 +993,22 @@ app.put('/api/groups/:id', async (req, res) => {
   }
 
   await getDb().collection('groups').updateOne({ _id: group._id }, { $set: updates });
+
+  // A change to the admin list is a promotion or a demotion; any
+  // other change is an edit of the group's settings.
+  if (updates.adminIds !== undefined) {
+    const before = group.adminIds || [];
+    for (const adminId of updates.adminIds.filter(id => !before.includes(id))) {
+      await logAdminAction(req, 'admin_promoted', `Promoted ${await nameOfUser(adminId)} to admin of "${group.title}"`);
+    }
+    for (const adminId of before.filter(id => !updates.adminIds.includes(id))) {
+      await logAdminAction(req, 'admin_demoted', `Removed ${await nameOfUser(adminId)} as admin of "${group.title}"`);
+    }
+  }
+  const settingsChanged = Object.keys(updates).filter(name => name !== 'adminIds' && name !== 'channelIds');
+  if (settingsChanged.length > 0) {
+    await logAdminAction(req, 'group_updated', `Changed ${settingsChanged.join(', ')} of "${updates.title || group.title}"`);
+  }
   res.status(204).send();
 });
 
@@ -791,6 +1070,8 @@ app.put('/api/join-requests/:id', async (req, res) => {
         { _id: requestId },
         { $set: { status: 'rejected', rejectionReason: refusal.message } }
       );
+      await logAdminAction(req, 'join_request_rejected',
+        `Join request by ${await nameOfUser(request.userId)} for ${await titleOfGroup(request.groupId)} could not be approved: ${refusal.message}`);
       return res.status(409).json({ message: refusal.message });
     }
 
@@ -799,13 +1080,22 @@ app.put('/api/join-requests/:id', async (req, res) => {
       { _id: user._id },
       { $addToSet: { groupIds: request.groupId } }
     );
+    // The new group appears in the user's open tabs without a reload.
+    await enforceAccess(user._id.toString());
+    await logAdminAction(req, 'join_request_approved',
+      `Approved ${user.displayName || user.username} joining "${group.title}"`);
     return res.status(204).send();
   }
 
+  const rejected = await joinRequests.findOne({ _id: requestId });
   await joinRequests.updateOne(
     { _id: requestId },
     { $set: { status, rejectionReason } }
   );
+  if (rejected && status === 'rejected') {
+    await logAdminAction(req, 'join_request_rejected',
+      `Rejected ${await nameOfUser(rejected.userId)} joining ${await titleOfGroup(rejected.groupId)}${rejectionReason ? ': ' + rejectionReason : ''}`);
+  }
   res.status(204).send();
 });
 
@@ -867,6 +1157,9 @@ app.put('/api/group-requests/:id', async (req, res) => {
   if (result.matchedCount === 0) {
     return res.status(404).json({ message: 'Group request not found.' });
   }
+  const decided = await getDb().collection('groupRequests').findOne({ _id: new ObjectId(req.params.id) });
+  await logAdminAction(req, status === 'approved' ? 'group_request_approved' : 'group_request_rejected',
+    `${status === 'approved' ? 'Approved' : 'Rejected'} the request by ${await nameOfUser(decided.requestedBy)} for a group called "${decided.proposedTitle}"${status === 'rejected' && rejectionReason ? ': ' + rejectionReason : ''}`);
   res.status(204).send();
 });
 // --- Room Requests ---
@@ -907,33 +1200,148 @@ app.get('/api/ban-requests', async (req, res) => {
   res.json(requests.map(toClientShape));
 });
 
+// A request to remove or ban someone from a group, with a reason.
+//  - Any member can ask about an ordinary member; one of the
+//    group's admins decides (reviewer 'group_admin').
+//  - A Group Admin can only be removed or banned this way, only
+//    another admin of the same group can ask, and the Super Admin
+//    decides (reviewer 'super_admin').
+// "remove" takes the person out of the group; "ban" also stops
+// them rejoining.
 app.post('/api/ban-requests', async (req, res) => {
-  const newRequest = { ...req.body, status: 'pending' };
+  const body = req.body || {};
+  const requester = await findUser(body.requestedBy);
+  const target = await findUser(body.targetUserId);
+  if (!requester || !target) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+  const group = typeof body.groupId === 'string' && ObjectId.isValid(body.groupId)
+    ? await getDb().collection('groups').findOne({ _id: new ObjectId(body.groupId) })
+    : null;
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found.' });
+  }
+  const requesterId = requester._id.toString();
+  const targetId = target._id.toString();
+
+  if (requesterId === targetId) {
+    return res.status(400).json({ message: 'You cannot make a request about yourself.' });
+  }
+  if (!(requester.groupIds || []).includes(body.groupId)) {
+    return res.status(403).json({ message: 'Only a member of the group can make this request.' });
+  }
+  if (!(target.groupIds || []).includes(body.groupId)) {
+    return res.status(400).json({ message: 'That user is not a member of this group.' });
+  }
+  const action = body.action === undefined ? 'ban' : body.action;
+  if (action !== 'remove' && action !== 'ban') {
+    return res.status(400).json({ message: 'The request must be to remove or to ban.' });
+  }
+  if (!isFilledText(body.reason)) {
+    return res.status(400).json({ message: 'A reason is required.' });
+  }
+  const reason = body.reason.trim();
+  if (reason.length > MAX_REPORT_REASON_LENGTH) {
+    return res.status(400).json({ message: `The reason must be ${MAX_REPORT_REASON_LENGTH} characters or fewer.` });
+  }
+
+  const admins = group.adminIds || [];
+  const targetIsAdmin = admins.includes(targetId);
+  if (targetIsAdmin && !admins.includes(requesterId)) {
+    return res.status(403).json({ message: 'Only another admin of this group can ask for a Group Admin to be removed or banned.' });
+  }
+
+  const pending = await getDb().collection('banRequests').findOne({
+    requestedBy: requesterId, targetUserId: targetId, groupId: body.groupId, status: 'pending'
+  });
+  if (pending) {
+    return res.status(409).json({ message: 'You already have a pending request about this user.' });
+  }
+
+  const newRequest = {
+    requestedBy: requesterId,
+    targetUserId: targetId,
+    groupId: body.groupId,
+    action,
+    reason,
+    reviewer: targetIsAdmin ? 'super_admin' : 'group_admin',
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
   const result = await getDb().collection('banRequests').insertOne(newRequest);
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
 });
 
+// The decision on a remove/ban request. Approving carries it out.
 app.put('/api/ban-requests/:id', async (req, res) => {
-  const { status, rejectionReason } = req.body;
-  await getDb().collection('banRequests').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { status, rejectionReason } }
-  );
-
-  if (status === 'approved') {
-    const request = await getDb().collection('banRequests').findOne({ _id: new ObjectId(req.params.id) });
-    const targetUser = await getDb().collection('users').findOne({ _id: new ObjectId(request.targetUserId) });
-    const updatedGroupIds = (targetUser.groupIds || []).filter(id => id !== request.groupId);
-    const updatedBannedIds = [...(targetUser.bannedFromGroupIds || []), request.groupId];
-
-    await getDb().collection('users').updateOne(
-      { _id: new ObjectId(request.targetUserId) },
-      { $set: { groupIds: updatedGroupIds, bannedFromGroupIds: updatedBannedIds } }
-    );
+  const { status, rejectionReason } = req.body || {};
+  if (status !== 'approved' && status !== 'rejected') {
+    return res.status(400).json({ message: 'Status must be approved or rejected.' });
+  }
+  const banRequests = getDb().collection('banRequests');
+  const request = ObjectId.isValid(req.params.id)
+    ? await banRequests.findOne({ _id: new ObjectId(req.params.id) })
+    : null;
+  if (!request) {
+    return res.status(404).json({ message: 'Request not found.' });
+  }
+  if (request.status !== 'pending') {
+    return res.status(409).json({ message: 'This request has already been decided.' });
   }
 
+  const requestAction = request.action === 'remove' ? 'remove' : 'ban';
+  if (status === 'rejected') {
+    await banRequests.updateOne({ _id: request._id }, { $set: { status, rejectionReason } });
+    await logAdminAction(req, 'ban_request_rejected',
+      `Rejected the request to ${requestAction} ${await nameOfUser(request.targetUserId)} from ${await titleOfGroup(request.groupId)}${rejectionReason ? ': ' + rejectionReason : ''}`);
+    return res.status(204).send();
+  }
+
+  const users = getDb().collection('users');
+  const groups = getDb().collection('groups');
+  const target = await findUser(request.targetUserId);
+  const group = ObjectId.isValid(request.groupId)
+    ? await groups.findOne({ _id: new ObjectId(request.groupId) })
+    : null;
+  if (!target || !group) {
+    await banRequests.updateOne({ _id: request._id }, { $set: { status: 'rejected', rejectionReason: 'The user or group no longer exists.' } });
+    return res.status(409).json({ message: 'The user or group no longer exists.' });
+  }
+  const targetId = target._id.toString();
+
+  // A group must always keep an admin, even when one is removed.
+  const admins = group.adminIds || [];
+  if (admins.includes(targetId) && admins.length <= 1) {
+    return res.status(409).json({ message: `${target.displayName || target.username} is the only admin of "${group.title}". Appoint another admin first.` });
+  }
+
+  const changes = { $pull: { groupIds: request.groupId } };
+  // Old requests made before "remove" existed have no action and
+  // are treated as bans, which is what they were.
+  if (request.action !== 'remove') {
+    changes.$addToSet = { bannedFromGroupIds: request.groupId };
+  }
+  await users.updateOne({ _id: target._id }, changes);
+
+  // If they were one of the group's admins they stop being one,
+  // and if that was the last group they administered their role
+  // goes back to a plain user.
+  if (admins.includes(targetId)) {
+    await groups.updateOne({ _id: group._id }, { $pull: { adminIds: targetId } });
+    const stillAdminSomewhere = await groups.countDocuments({ adminIds: targetId });
+    if (stillAdminSomewhere === 0 && target.role === 'group_admin') {
+      await users.updateOne({ _id: target._id }, { $set: { role: 'user' } });
+    }
+  }
+
+  await banRequests.updateOne({ _id: request._id }, { $set: { status: 'approved' } });
+  // Take them out of the group's channels right away.
+  await enforceAccess(targetId);
+  await logAdminAction(req, 'ban_request_approved',
+    `Approved the request to ${requestAction} ${target.displayName || target.username}${admins.includes(targetId) ? ' (a Group Admin)' : ''} from "${group.title}". Reason given: ${request.reason}`);
   res.status(204).send();
 });
+
 // --- Channels ---
 
 app.get('/api/channels', async (req, res) => {
@@ -962,7 +1370,42 @@ app.post('/api/channels', async (req, res) => {
 
   const newChannel = { name, groupId: body.groupId };
   const result = await getDb().collection('channels').insertOne(newChannel);
+  await logAdminAction(req, 'channel_created', `Created the channel "${name}" in "${group.title}"`);
   res.status(201).json(toClientShape({ ...newChannel, _id: result.insertedId }));
+});
+
+// Deletes a channel, with its messages and their image files.
+// Every group keeps somewhere to chat, so its last channel can't
+// be deleted. Everyone with the app open is told, so the channel
+// disappears from their list, and anyone inside it is taken out.
+app.delete('/api/channels/:id', async (req, res) => {
+  const channels = getDb().collection('channels');
+  const channel = ObjectId.isValid(req.params.id)
+    ? await channels.findOne({ _id: new ObjectId(req.params.id) })
+    : null;
+  if (!channel) {
+    return res.status(404).json({ message: 'Channel not found.' });
+  }
+  if ((await channels.countDocuments({ groupId: channel.groupId })) <= 1) {
+    return res.status(409).json({ message: 'A group must keep at least one channel.' });
+  }
+
+  const channelId = channel._id.toString();
+  const messages = await getDb().collection('messages').find({ channelId }).toArray();
+  await getDb().collection('messages').deleteMany({ channelId });
+  for (const message of messages) {
+    deleteUploadedImage(message.imageUrl);
+  }
+  await channels.deleteOne({ _id: channel._id });
+
+  io.emit('channelDeleted', { id: channelId, groupId: channel.groupId, name: channel.name });
+  for (const openSocket of await io.in(channelId).fetchSockets()) {
+    openSocket.leave(channelId);
+    openSocket.data.channelId = undefined;
+  }
+  await logAdminAction(req, 'channel_deleted',
+    `Deleted the channel "${channel.name}" from ${await titleOfGroup(channel.groupId)} (${messages.length} message(s) removed)`);
+  res.status(204).send();
 });
 // --- Messages ---
 
@@ -983,6 +1426,138 @@ app.get('/api/messages', async (req, res) => {
   res.json(messages.reverse().map(doc =>
     toClientShape({ ...doc, timestamp: resolveTimestamp(doc) })
   ));
+});
+
+// --- Audit log ---
+
+// Records one admin action: what happened, who did it and when.
+// "Who" is the user id the browser sends in the X-User-Id header
+// on every request. With no login token that is a claim rather
+// than proof, but it is the same id the rest of the app relies on.
+// A failure to write the log never stops the action itself.
+async function logAdminAction(req, type, summary) {
+  try {
+    const actor = await findUser(req.get('x-user-id'));
+    await getDb().collection('auditLog').insertOne({
+      type,
+      summary,
+      actorId: actor ? actor._id.toString() : null,
+      actorName: actor ? (actor.displayName || actor.username) : 'unknown',
+      actorRole: actor ? actor.role : null,
+      createdAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Could not write to the audit log:', err.message);
+  }
+}
+
+// A display name for a user id, for audit summaries.
+async function nameOfUser(userId) {
+  const user = await findUser(userId);
+  return user ? (user.displayName || user.username) : 'a deleted user';
+}
+
+// A group's title for a group id, for audit summaries.
+async function titleOfGroup(groupId) {
+  const group = typeof groupId === 'string' && ObjectId.isValid(groupId)
+    ? await getDb().collection('groups').findOne({ _id: new ObjectId(groupId) })
+    : null;
+  return group ? `"${group.title}"` : 'a deleted group';
+}
+
+// The audit log, newest first, for the Super Admin's page. It can
+// be narrowed by ?type= and by ?from= and ?to= dates (YYYY-MM-DD,
+// both inclusive). createdAt is an ISO string, which sorts and
+// compares in time order as plain text.
+app.get('/api/audit-log', async (req, res) => {
+  const filter = {};
+  if (typeof req.query.type === 'string' && req.query.type !== '') {
+    filter.type = req.query.type;
+  }
+  const isDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (isDay(req.query.from) || isDay(req.query.to)) {
+    filter.createdAt = {};
+    if (isDay(req.query.from)) {
+      filter.createdAt.$gte = req.query.from + 'T00:00:00.000Z';
+    }
+    if (isDay(req.query.to)) {
+      filter.createdAt.$lte = req.query.to + 'T23:59:59.999Z';
+    }
+  }
+  const entries = await getDb().collection('auditLog').find(filter).sort({ _id: -1 }).limit(1000).toArray();
+  res.json(entries.map(toClientShape));
+});
+
+// --- Notifications ---
+
+const MAX_NOTIFICATION_LENGTH = 500;
+
+// Notifications a user can read: those sent to everyone and those
+// sent just to them, newest first. With no ?userId= it returns
+// every notification (the Super Admin's list of what was sent).
+app.get('/api/notifications', async (req, res) => {
+  const filter = typeof req.query.userId === 'string'
+    ? { $or: [{ recipientId: null }, { recipientId: req.query.userId }] }
+    : {};
+  const notifications = await getDb().collection('notifications').find(filter).sort({ _id: -1 }).toArray();
+  res.json(notifications.map(toClientShape));
+});
+
+// The Super Admin sends a one-way notification, to everyone or to
+// one user. There is no way to reply. It is also pushed over the
+// socket so open pages can show it straight away.
+app.post('/api/notifications', async (req, res) => {
+  const body = req.body || {};
+  const sender = await findUser(body.sentBy);
+  if (!sender || sender.role !== 'super_admin') {
+    return res.status(403).json({ message: 'Only the Super Admin can send notifications.' });
+  }
+  if (!isFilledText(body.message)) {
+    return res.status(400).json({ message: 'A message is required.' });
+  }
+  const message = body.message.trim();
+  if (message.length > MAX_NOTIFICATION_LENGTH) {
+    return res.status(400).json({ message: `A notification must be ${MAX_NOTIFICATION_LENGTH} characters or fewer.` });
+  }
+  let recipient = null;
+  if (body.recipientId) {
+    recipient = await findUser(body.recipientId);
+    if (!recipient) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+  }
+
+  const newNotification = {
+    message,
+    recipientId: recipient ? recipient._id.toString() : null,
+    sentBy: sender._id.toString(),
+    createdAt: new Date().toISOString()
+  };
+  const result = await getDb().collection('notifications').insertOne(newNotification);
+  const saved = toClientShape({ ...newNotification, _id: result.insertedId });
+
+  if (recipient) {
+    io.to(userRoom(saved.recipientId)).emit('notification', saved);
+  } else {
+    io.emit('notification', saved);
+  }
+  await logAdminAction(req, 'notification_sent',
+    `Sent a notification to ${recipient ? (recipient.displayName || recipient.username) : 'everyone'}: "${message.slice(0, 80)}"`);
+  res.status(201).json(saved);
+});
+
+// Records that a user has opened their notifications, so the
+// unread count goes back to zero.
+app.post('/api/notifications/read', async (req, res) => {
+  const user = await findUser((req.body || {}).userId);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+  await getDb().collection('users').updateOne(
+    { _id: user._id },
+    { $set: { notificationsReadAt: new Date().toISOString() } }
+  );
+  res.status(204).send();
 });
 
 // --- Image upload ---
@@ -1017,6 +1592,37 @@ app.post('/api/upload', (req, res) => {
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
+  // A browser tab says which user it belongs to. From then on the
+  // tab counts as one of that user's connections for "online", and
+  // can be reached through the user's own room. The id is claimed
+  // before the database lookup so a repeated identify is ignored
+  // rather than counted twice.
+  socket.on('identify', async (payload) => {
+    const { userId } = payload || {};
+    if (typeof userId !== 'string' || socket.data.presenceUserId === userId) {
+      return;
+    }
+    signOutSocket(socket);
+    socket.data.presenceUserId = userId;
+
+    const user = await findUser(userId);
+    const stillWanted = socket.connected && socket.data.presenceUserId === userId;
+    if (!user || user.isSystemBanned || !stillWanted) {
+      if (socket.data.presenceUserId === userId) {
+        socket.data.presenceUserId = undefined;
+      }
+      return;
+    }
+    socket.data.presenceCounted = true;
+    socket.join(userRoom(userId));
+    addConnection(userId);
+  });
+
+  // Sent on logout, when the tab stays open but nobody is signed in.
+  socket.on('signOut', () => {
+    signOutSocket(socket);
+  });
+
   // Each handler below reads its fields from "payload || {}", so a
   // client that sends nothing at all (null) is ignored instead of
   // crashing the server.
@@ -1036,8 +1642,11 @@ io.on('connection', (socket) => {
     socket.data.userId = userId;
     socket.data.username = username;
     socket.join(channelId);
+    // The user id travels with the notice so a browser can hide
+    // notices about someone its user has blocked.
     socket.to(channelId).emit('userJoined', {
       channelId,
+      userId,
       username,
       timestamp: new Date().toISOString()
     });
@@ -1053,6 +1662,7 @@ io.on('connection', (socket) => {
     socket.leave(channelId);
     socket.to(channelId).emit('userLeft', {
       channelId,
+      userId: socket.data.userId,
       username: socket.data.username,
       timestamp: new Date().toISOString()
     });
@@ -1139,10 +1749,13 @@ io.on('connection', (socket) => {
     if (socket.data.channelId && socket.rooms.has(socket.data.channelId)) {
       socket.to(socket.data.channelId).emit('userLeft', {
         channelId: socket.data.channelId,
+        userId: socket.data.userId,
         username: socket.data.username,
         timestamp: new Date().toISOString()
       });
     }
+    // A closed tab is one fewer connection for its user.
+    signOutSocket(socket);
   });
 });
 

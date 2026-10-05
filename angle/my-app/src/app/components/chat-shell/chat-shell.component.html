@@ -9,6 +9,7 @@
       <a *ngIf="currentRole === 'group_admin' || currentRole === 'super_admin'" routerLink="/group-admin">Manage Group</a>
       <a routerLink="/group-request">Request Group</a>
       <a routerLink="/browse-groups">Browse Groups</a>
+      <a routerLink="/notifications">Notifications<span *ngIf="unreadNotifications > 0"> ({{ unreadNotifications }})</span></a>
       <a routerLink="/profile">My Profile</a>
       <a (click)="logout()">Log Out</a>
     </div>
@@ -54,7 +55,7 @@
       <div class="panel-header">
         # {{ activeChannel?.name || 'select a channel' }}
       </div>
-      <div class="thread">
+      <div class="thread" [class.themed]="currentGroup?.theme" [style.background-color]="currentGroup?.theme || null">
         <div class="system-row" *ngIf="channelNotice">{{ channelNotice }}</div>
         <ng-container *ngFor="let item of threadItems">
           <div class="system-row" *ngIf="isSystemMessage(item)">
@@ -64,6 +65,10 @@
             <span class="msg-sender">{{ item.senderName }}</span>
             <span class="msg-time">{{ formatTime(item.timestamp) }}</span>
             <a class="msg-delete" *ngIf="item.senderId === currentUserId" (click)="deleteMessage(item)">delete</a>
+            <ng-container *ngIf="item.senderId !== currentUserId">
+              <a class="msg-delete" (click)="blockSender(item)">block</a>
+              <a class="msg-delete" (click)="reportSender(item)">report</a>
+            </ng-container>
             <div class="msg-text" *ngIf="item.text">{{ item.text }}</div>
             <img *ngIf="item.imageUrl" [src]="imageSrc(item.imageUrl)" class="msg-image" alt="Image sent by {{ item.senderName }}" />
           </div>
@@ -97,11 +102,19 @@
     </div>
 
     <div class="col-right panel">
-      <div class="panel-header">Online Now</div>
+      <div class="panel-header">Online Now{{ currentGroup ? ' — ' + currentGroup.title : '' }}</div>
       <div class="panel-body no-pad">
-        <div class="user-row" *ngFor="let u of onlineUsers">
-          <span class="dot" [class.online]="u.online"></span>
-          {{ u.displayName }}
+        <div class="user-row" *ngIf="!currentGroup">Open a channel to see who in that group is online.</div>
+        <div class="user-row" *ngFor="let m of groupMembers">
+          <span class="dot" [class.online]="m.online"></span>
+          {{ m.displayName }}
+          <span class="msg-time">{{ m.online ? 'online' : 'offline' }}</span>
+          <!-- Ask the group's admins to remove or ban this member. Not
+               offered for yourself or for a Group Admin. -->
+          <div class="msg-time" *ngIf="m.id !== currentUserId && !m.isAdmin">
+            <a (click)="requestMemberAction(m, 'remove')">ask to remove</a> &middot;
+            <a (click)="requestMemberAction(m, 'ban')">ask to ban</a>
+          </div>
         </div>
       </div>
     </div>

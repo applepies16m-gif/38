@@ -15,7 +15,7 @@ const { connectToDatabase } = require('./db');
 const { hashPassword, backupCollections } = require('./passwords');
 
 // Every collection the app uses. All of them are emptied.
-const COLLECTIONS = ['users', 'groups', 'channels', 'messages', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests'];
+const COLLECTIONS = ['users', 'groups', 'channels', 'messages', 'joinRequests', 'groupRequests', 'roomRequests', 'banRequests', 'reports', 'notifications', 'auditLog'];
 
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 

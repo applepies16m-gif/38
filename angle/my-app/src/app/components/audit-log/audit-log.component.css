@@ -1,0 +1,73 @@
+/* Same page frame as the other pages. This one is wider, because
+   the table has four columns. */
+.page {
+  min-height: 100vh;
+}
+
+.top-bar {
+  background: linear-gradient(to bottom, #4a6bab, var(--chrome-blue));
+  border-bottom: 1px solid var(--chrome-blue-dark);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+}
+
+.page-title {
+  font-size: 12px;
+  opacity: 0.9;
+  flex: 1;
+}
+
+.back-link {
+  color: #dbe4f5;
+  font-size: 11px;
+}
+
+.back-link:hover {
+  color: #fff;
+}
+
+.page-body {
+  max-width: 960px;
+  margin: 14px auto;
+  padding: 0 10px;
+}
+
+/* The filters sit in one row and wrap on a narrow screen. */
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.filter-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--text-muted);
+}
+
+.filter-row select,
+.filter-row input {
+  padding: 4px 6px;
+}
+
+.when {
+  white-space: nowrap;
+}
+
+.role {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.note {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin: 0;
+}

@@ -1,15 +1,16 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
+import { actorInterceptor } from './interceptors/actor.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient()
+    // Every HTTP request passes through actorInterceptor, which adds
+    // the logged-in user's id for the server's audit log.
+    provideHttpClient(withInterceptors([actorInterceptor]))
   ]
-  
 };
