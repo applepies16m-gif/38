@@ -26,6 +26,10 @@ export class ChatShellComponent implements OnInit, OnDestroy {
   hasGroups = true;
 
   allGroups: Group[] = [];
+  // Every group on the server, and the ids of the ones this user
+  // belongs to. allGroups is worked out from these two.
+  private everyGroup: Group[] = [];
+  private myGroupIds: string[] = [];
   allChannels: Channel[] = [];
   onlineUsers: User[] = [];
 
@@ -61,12 +65,14 @@ export class ChatShellComponent implements OnInit, OnDestroy {
     this.currentUsername = currentUser.displayName || currentUser.username;
     this.currentUserId = currentUser.id;
     this.currentRole = currentUser.role;
-    this.hasGroups = currentUser.groupIds.length > 0;
+    // Start from the copy saved at login so the page draws straight
+    // away; it is corrected below once the server answers.
+    this.myGroupIds = currentUser.groupIds;
+    this.applyMembership();
 
     this.groupService.getGroups().subscribe(groups => {
-      // Only the groups this user actually belongs to.
-      this.allGroups = groups.filter(g => currentUser.groupIds.includes(g.id));
-      this.cdr.markForCheck();
+      this.everyGroup = groups;
+      this.applyMembership();
     });
 
     this.channelService.getChannels().subscribe(channels => {
@@ -76,7 +82,21 @@ export class ChatShellComponent implements OnInit, OnDestroy {
 
     this.userService.getUsers().subscribe(users => {
       this.onlineUsers = users;
-      this.cdr.markForCheck();
+
+      // The copy in localStorage dates from login. Bans, approvals
+      // and promotions since then only exist on the server, so
+      // replace the saved copy with the server's current one.
+      const freshUser = users.find(u => u.id === currentUser.id);
+      if (!freshUser) {
+        // The account no longer exists, so end the session.
+        this.logout();
+        return;
+      }
+      this.authService.login(freshUser);
+      this.currentUsername = freshUser.displayName || freshUser.username;
+      this.currentRole = freshUser.role;
+      this.myGroupIds = freshUser.groupIds;
+      this.applyMembership();
     });
 
     this.socketService.getSocket().on('newMessage', (message: ChatMessage) => {
@@ -105,6 +125,15 @@ export class ChatShellComponent implements OnInit, OnDestroy {
       });
       this.cdr.markForCheck();
     });
+  }
+
+  // Works out which groups to show: only the ones this user
+  // currently belongs to. Called whenever the group list or the
+  // user's membership changes.
+  private applyMembership(): void {
+    this.allGroups = this.everyGroup.filter(g => this.myGroupIds.includes(g.id));
+    this.hasGroups = this.myGroupIds.length > 0;
+    this.cdr.markForCheck();
   }
 
   // The socket is shared and outlives this component, so the
