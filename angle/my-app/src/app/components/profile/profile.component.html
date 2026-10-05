@@ -36,9 +36,14 @@
         <label>Email (cannot be changed)</label>
         <input type="text" [value]="email" disabled />
 
+        <label>Date of Birth{{ dateOfBirthLocked ? ' (cannot be changed)' : '' }}</label>
+        <input type="date" [(ngModel)]="dateOfBirth" [disabled]="dateOfBirthLocked" />
+        <span class="hint-inline" *ngIf="!dateOfBirthLocked">Can only be set once, so check it before saving.</span>
+
         <label>About Me</label>
         <textarea [(ngModel)]="bio" rows="3" placeholder="Say a little about yourself..."></textarea>
 
+        <div *ngIf="profileError" class="password-msg">{{ profileError }}</div>
         <div *ngIf="saved" class="success-text">Profile saved.</div>
 
         <button class="btn btn-primary" (click)="saveProfile()">Save Changes</button>

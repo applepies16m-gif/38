@@ -7,7 +7,7 @@ import { Group, GroupCreationRequest } from '../../models/group.model';
 import { UserService } from '../../services/user.service';
 import { GroupService } from '../../services/group.service';
 import { AuthService } from '../../services/auth.service';
-
+import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of-birth';
 
 @Component({
   selector: 'app-admin-panel',
@@ -25,6 +25,7 @@ export class AdminPanelComponent implements OnInit {
   newUsername = '';
   newDisplayName = '';
   newPassword = '';
+  newDateOfBirth = ''; // optional for accounts an admin creates
   newGroupName = '';
 
   constructor(
@@ -62,12 +63,19 @@ export class AdminPanelComponent implements OnInit {
     });
   }
 
+  // Creates a user account from the Admin Panel form. The date of
+  // birth is optional here, but is checked if one is entered.
   requestNewUser(): void {
     if (!this.newUsername.trim() || !this.newPassword.trim()) {
+      alert('A username and a password are required.');
       return;
     }
     if (this.newPassword.length < 8 || !/[A-Z]/.test(this.newPassword)) {
       alert('Password must be at least 8 characters and include an uppercase letter.');
+      return;
+    }
+    if (this.newDateOfBirth && calculateAge(this.newDateOfBirth) === null) {
+      alert(INVALID_DATE_OF_BIRTH_MESSAGE);
       return;
     }
     const newUser: Partial<User> = {
@@ -81,12 +89,21 @@ export class AdminPanelComponent implements OnInit {
       bannedFromGroupIds: [],
       isSystemBanned: false
     };
-    this.userService.createUser(newUser).subscribe(createdUser => {
-      this.users.push(createdUser);
-      this.cdr.markForCheck();
-      this.newUsername = '';
-      this.newDisplayName = '';
-      this.newPassword = '';
+    if (this.newDateOfBirth) {
+      newUser.dateOfBirth = this.newDateOfBirth;
+    }
+    this.userService.createUser(newUser).subscribe({
+      next: (createdUser) => {
+        this.users.push(createdUser);
+        this.newUsername = '';
+        this.newDisplayName = '';
+        this.newPassword = '';
+        this.newDateOfBirth = '';
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        alert(err.error?.message || 'The user could not be created.');
+      }
     });
   }
 

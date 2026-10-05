@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { UserService } from '../../services/user.service';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
+import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of-birth';
 
 @Component({
   selector: 'app-register',
@@ -25,7 +26,8 @@ export class RegisterComponent {
   constructor(
     private userService: UserService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private cdr: ChangeDetectorRef
   ) {}
 
   get passwordIsValid(): boolean {
@@ -35,6 +37,12 @@ export class RegisterComponent {
   onRegister(): void {
     if (!this.displayName || !this.username || !this.email || !this.dateOfBirth || !this.password) {
       this.errorMsg = 'Please fill in every field.';
+      return;
+    }
+    // The server applies the same rule; checking here just gives
+    // the answer without a round trip.
+    if (calculateAge(this.dateOfBirth) === null) {
+      this.errorMsg = INVALID_DATE_OF_BIRTH_MESSAGE;
       return;
     }
     if (!this.passwordIsValid) {
@@ -66,8 +74,10 @@ export class RegisterComponent {
           queryParams: { role: createdUser.role, user: createdUser.username, hasGroups: false }
         });
       },
-      error: () => {
-        this.errorMsg = 'Registration failed — that username may already be taken.';
+      error: (err) => {
+        // Show the server's own reason when it gives one.
+        this.errorMsg = err.error?.message || 'Registration failed — that username may already be taken.';
+        this.cdr.markForCheck();
       }
     });
   }

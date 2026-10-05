@@ -43,7 +43,10 @@ const USER_CREATE_FIELDS = ['username', 'password', 'displayName', 'email', 'dat
 // Fields a client may change on an existing user. The admin pages
 // change role and group membership through this same route, so
 // those have to stay on the list.
-const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds'];
+const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth'];
+
+// Shown when a date of birth fails calculateAge's rules.
+const INVALID_DATE_OF_BIRTH_MESSAGE = 'Date of birth must be a real date, not in the future and not more than 120 years ago.';
 
 // Returns a copy of source holding only the named fields, so
 // anything else a client sends is ignored.
@@ -218,10 +221,21 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   const body = req.body || {};
+  const fields = pickFields(body, USER_CREATE_FIELDS);
+
+  // A date of birth is optional (accounts made by an admin may not
+  // have one), so it is only checked when one was sent. An empty
+  // value counts as not sent and is not stored.
+  if (!fields.dateOfBirth) {
+    delete fields.dateOfBirth;
+  } else if (calculateAge(fields.dateOfBirth) === null) {
+    return res.status(400).json({ message: INVALID_DATE_OF_BIRTH_MESSAGE });
+  }
+
   // Only the whitelisted fields are kept. Every new account starts
   // as a plain user in no groups, whatever the client sent.
   const newUser = {
-    ...pickFields(body, USER_CREATE_FIELDS),
+    ...fields,
     username: (body.username || '').toLowerCase(),
     role: 'user',
     online: false,
@@ -244,6 +258,26 @@ app.put('/api/users/:id', async (req, res) => {
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ message: 'No valid fields to update.' });
   }
+
+  // A date of birth can be set once. It is accepted only if the
+  // new value is valid and the account doesn't already hold a
+  // valid one, so a user can't change their age to get past a
+  // group's age limit.
+  if (updates.dateOfBirth !== undefined) {
+    if (calculateAge(updates.dateOfBirth) === null) {
+      return res.status(400).json({ message: INVALID_DATE_OF_BIRTH_MESSAGE });
+    }
+    const existing = ObjectId.isValid(req.params.id)
+      ? await getDb().collection('users').findOne({ _id: new ObjectId(req.params.id) })
+      : null;
+    if (!existing) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    if (calculateAge(existing.dateOfBirth) !== null) {
+      return res.status(400).json({ message: 'Date of birth has already been set and cannot be changed.' });
+    }
+  }
+
   await getDb().collection('users').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: updates }

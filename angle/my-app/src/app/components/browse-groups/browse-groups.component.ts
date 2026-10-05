@@ -107,7 +107,7 @@ export class BrowseGroupsComponent implements OnInit {
     if (group.ageLimit > 0) {
       const age = calculateAge(user.dateOfBirth);
       if (age === null) {
-        return { label: 'Request to Join', canRequest: false, reason: 'Your account has no valid date of birth, so your age can\'t be checked.' };
+        return { label: 'Request to Join', canRequest: false, reason: 'Your account has no valid date of birth, so your age can\'t be checked. Add it on your profile.' };
       }
       if (age < group.ageLimit) {
         return { label: 'Request to Join', canRequest: false, reason: `You must be ${group.ageLimit} or older to join.` };

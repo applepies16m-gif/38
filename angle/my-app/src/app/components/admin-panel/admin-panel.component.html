@@ -52,6 +52,11 @@
       <div class="panel-body form-row">
         <input type="text" placeholder="Username" [(ngModel)]="newUsername" />
         <input type="text" placeholder="Display name (optional)" [(ngModel)]="newDisplayName" />
+        <input type="password" placeholder="Password (8+ characters, 1 uppercase)" [(ngModel)]="newPassword" />
+        <label>
+          Date of birth (optional)
+          <input type="date" [(ngModel)]="newDateOfBirth" />
+        </label>
         <button class="btn btn-primary" (click)="requestNewUser()">Submit Request</button>
       </div>
     </div>

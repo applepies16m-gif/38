@@ -6,6 +6,9 @@
 // A date of birth further back than this is treated as a mistake.
 export const MAX_AGE_YEARS = 120;
 
+// Shown when a date of birth fails calculateAge's rules.
+export const INVALID_DATE_OF_BIRTH_MESSAGE = 'Date of birth must be a real date, not in the future and not more than 120 years ago.';
+
 // Returns the age in whole years today, or null if the date of
 // birth is missing, not a real calendar date written as
 // YYYY-MM-DD, in the future, or more than MAX_AGE_YEARS ago.
