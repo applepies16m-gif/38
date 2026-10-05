@@ -1,7 +1,14 @@
 /* You can add global styles to this file, and also import other style files */
 :root {
+  /* The site's main colour in five shades. Every bar, button and
+     border uses these, never a fixed colour, so a user's chosen
+     colour (My Profile, Appearance) can replace all of them at
+     once. See AppearanceService. */
   --chrome-blue: #3b5998;
   --chrome-blue-dark: #2d4373;
+  --chrome-blue-light: #4a6bab;
+  --chrome-blue-lighter: #5b78ad;
+  --chrome-blue-mid: #4e6a9e;
   --panel-border: #b5c7de;
   --panel-bg: #ffffff;
   --page-bg: #e9ebee;
@@ -64,12 +71,12 @@ body {
 
 .btn-primary {
   color: #fff;
-  background: linear-gradient(to bottom, #5b78ad, var(--chrome-blue));
+  background: linear-gradient(to bottom, var(--chrome-blue-lighter), var(--chrome-blue));
   border: 1px solid var(--chrome-blue-dark);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(to bottom, #4e6a9e, var(--chrome-blue-dark));
+  background: linear-gradient(to bottom, var(--chrome-blue-mid), var(--chrome-blue-dark));
 }
 
 input[type="text"], input[type="password"] {

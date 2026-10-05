@@ -4,7 +4,7 @@
 }
 
 .top-bar {
-  background: linear-gradient(to bottom, #4a6bab, var(--chrome-blue));
+  background: linear-gradient(to bottom, var(--chrome-blue-light), var(--chrome-blue));
   border-bottom: 1px solid var(--chrome-blue-dark);
   padding: 8px 16px;
   display: flex;
@@ -97,4 +97,17 @@
 .password-msg {
   color: #c0392b;
   font-size: 11px;
+}
+/* The colour slider on the Appearance panel: its track shows the
+   colour wheel, so the position of the handle shows the colour
+   that will be used. */
+.hue-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 12px;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(to right,
+    hsl(0, 44%, 41%), hsl(60, 44%, 41%), hsl(120, 44%, 41%),
+    hsl(180, 44%, 41%), hsl(240, 44%, 41%), hsl(300, 44%, 41%), hsl(360, 44%, 41%));
 }

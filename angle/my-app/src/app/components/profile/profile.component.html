@@ -73,6 +73,46 @@
     </div>
 
     <div class="panel">
+      <div class="panel-header">Appearance</div>
+      <div class="panel-body form-grid">
+        <p class="helper-text">
+          Make the site look the way you like. Move a slider to preview it, then save.
+          It applies to every page, only for you, wherever you log in.
+        </p>
+
+        <label for="appearance-size">Size: {{ appearance.textScale }}%</label>
+        <input
+          id="appearance-size"
+          type="range"
+          [min]="appearanceLimits.textScale.min"
+          [max]="appearanceLimits.textScale.max"
+          [step]="appearanceLimits.textScale.step"
+          [(ngModel)]="appearance.textScale"
+          (ngModelChange)="previewAppearance()"
+        />
+
+        <label for="appearance-colour">Colour</label>
+        <input
+          id="appearance-colour"
+          type="range"
+          class="hue-slider"
+          [min]="appearanceLimits.hue.min"
+          [max]="appearanceLimits.hue.max"
+          [step]="appearanceLimits.hue.step"
+          [(ngModel)]="appearance.hue"
+          (ngModelChange)="previewAppearance()"
+        />
+
+        <div *ngIf="appearanceMsg" class="success-text">{{ appearanceMsg }}</div>
+
+        <div>
+          <button class="btn btn-primary" (click)="saveAppearance()">Save Appearance</button>
+          <button class="btn" (click)="resetAppearance()">Reset to Default</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="panel-header">Blocked Users</div>
       <div class="panel-body">
         <p class="helper-text">You don't see messages or join/leave notices from these users. Block someone from the "block" link beside their message in chat.</p>

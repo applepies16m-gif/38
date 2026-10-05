@@ -6,7 +6,7 @@
 }
 
 .brand-bar {
-  background: linear-gradient(to bottom, #4a6bab, var(--chrome-blue));
+  background: linear-gradient(to bottom, var(--chrome-blue-light), var(--chrome-blue));
   border-bottom: 1px solid var(--chrome-blue-dark);
   padding: 10px 20px;
   color: #fff;

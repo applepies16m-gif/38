@@ -1,4 +1,5 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { AppearanceService, Appearance, DEFAULT_APPEARANCE, APPEARANCE_LIMITS } from '../../services/appearance.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -15,7 +16,15 @@ import { calculateAge, INVALID_DATE_OF_BIRTH_MESSAGE } from '../../utils/date-of
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.css'
 })
-export class ProfileComponent implements OnInit {
+export class ProfileComponent implements OnInit, OnDestroy {
+  // The two Appearance sliders, their limits, and a message shown
+  // after saving. savedAppearance is what the account holds, so an
+  // unsaved preview can be undone when leaving the page.
+  appearance: Appearance = { ...DEFAULT_APPEARANCE };
+  appearanceLimits = APPEARANCE_LIMITS;
+  appearanceMsg = '';
+  private savedAppearance: Appearance = { ...DEFAULT_APPEARANCE };
+
   username = '';
   displayName = '';
   email = ''; // locked, per spec -- shown but not editable; set from AuthService in ngOnInit
@@ -46,8 +55,52 @@ constructor(
   private authService: AuthService,
   private userService: UserService,
   private uploadService: UploadService,
+  private appearanceService: AppearanceService,
   private cdr: ChangeDetectorRef
 ) {}
+
+  // Leaving the page without saving undoes any slider preview, so
+  // the site goes back to the look the account actually holds.
+  ngOnDestroy(): void {
+    if (this.authService.getCurrentUser()) {
+      this.appearanceService.apply(this.savedAppearance);
+    }
+  }
+
+  // Runs as a slider moves: shows the new look straight away,
+  // without saving it yet.
+  previewAppearance(): void {
+    this.appearanceMsg = '';
+    this.appearanceService.apply(this.appearance);
+  }
+
+  // Saves the sliders' values on this user's account, so the same
+  // look is used on every page and in any browser they log in from.
+  saveAppearance(): void {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser) {
+      return;
+    }
+    const chosen = this.appearanceService.clean(this.appearance);
+    this.userService.updateUser(currentUser.id, { appearance: chosen }).subscribe({
+      next: () => {
+        this.savedAppearance = chosen;
+        this.appearanceMsg = 'Appearance saved.';
+        this.refreshFromServer(currentUser.id);
+      },
+      error: (err) => {
+        this.appearanceMsg = err.error?.message || 'Your appearance could not be saved.';
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  // Puts both sliders back to the standard look and saves that.
+  resetAppearance(): void {
+    this.appearance = { ...DEFAULT_APPEARANCE };
+    this.previewAppearance();
+    this.saveAppearance();
+  }
 
 ngOnInit(): void {
   const currentUser = this.authService.getCurrentUser();
@@ -76,6 +129,8 @@ ngOnInit(): void {
     this.dateOfBirthLocked = calculateAge(user.dateOfBirth) !== null;
     this.dateOfBirth = this.dateOfBirthLocked ? (user.dateOfBirth || '') : '';
     this.profilePicUrl = user.profilePicUrl ? this.uploadService.fullUrl(user.profilePicUrl) : null;
+    this.savedAppearance = this.appearanceService.clean(user.appearance);
+    this.appearance = { ...this.savedAppearance };
     this.cdr.markForCheck();
   }
 

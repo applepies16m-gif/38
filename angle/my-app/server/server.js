@@ -184,7 +184,12 @@ const USER_CREATE_FIELDS = ['username', 'password', 'firstName', 'lastName', 'di
 // Fields a client may change on an existing user. The admin pages
 // change role and group membership through this same route, so
 // those have to stay on the list.
-const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth', 'profilePicUrl', 'isSystemBanned'];
+const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth', 'profilePicUrl', 'isSystemBanned', 'appearance'];
+
+// The limits of the two Appearance sliders on the Profile page:
+// interface size as a percentage, and the main colour as a hue on
+// the colour wheel.
+const APPEARANCE_LIMITS = { textScale: { min: 90, max: 140 }, hue: { min: 0, max: 360 } };
 
 // Fields a client may send when creating or changing a group.
 const GROUP_FIELDS = ['title', 'description', 'ageLimit', 'adminIds', 'channelIds', 'theme'];
@@ -504,6 +509,21 @@ async function checkUserUpdates(updates, existing) {
   // /api/upload, never an outside address.
   if (updates.profilePicUrl !== undefined && !isUploadedImageUrl(updates.profilePicUrl)) {
     return bad('A profile picture must be an image uploaded through the app.');
+  }
+
+  // A user's chosen look for the site: exactly two whole numbers,
+  // each within its slider's range. Only those two are stored,
+  // whatever else was sent with them.
+  if (updates.appearance !== undefined) {
+    const appearance = updates.appearance;
+    const isWholeNumberIn = (value, limits) =>
+      Number.isInteger(value) && value >= limits.min && value <= limits.max;
+    if (appearance === null || typeof appearance !== 'object' ||
+        !isWholeNumberIn(appearance.textScale, APPEARANCE_LIMITS.textScale) ||
+        !isWholeNumberIn(appearance.hue, APPEARANCE_LIMITS.hue)) {
+      return bad('Appearance must be a size from 90 to 140 and a colour from 0 to 360.');
+    }
+    updates.appearance = { textScale: appearance.textScale, hue: appearance.hue };
   }
 
   // Last step, once every change is known to be valid: a new
