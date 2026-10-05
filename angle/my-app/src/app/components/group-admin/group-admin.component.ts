@@ -109,14 +109,27 @@ get pendingBanRequestsForGroup(): BanRequest[] {
     return this.allUsers.find(u => u.id === userId)?.displayName || userId;
   }
 
+  // Approves a join request. The server checks the join rules
+  // again (ban, age limit, already a member); if the request no
+  // longer passes, the server has already marked it rejected, so
+  // show the admin why and update the row to match.
   approveJoinRequest(req: JoinRequest): void {
-    this.groupService.updateJoinRequest(req.id, 'approved').subscribe(() => {
-      req.status = 'approved';
-      const user = this.allUsers.find(u => u.id === req.userId);
-      if (user && !user.groupIds.includes(req.groupId)) {
-        user.groupIds.push(req.groupId);
+    this.groupService.updateJoinRequest(req.id, 'approved').subscribe({
+      next: () => {
+        req.status = 'approved';
+        const user = this.allUsers.find(u => u.id === req.userId);
+        if (user && !user.groupIds.includes(req.groupId)) {
+          user.groupIds.push(req.groupId);
+        }
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        const reason = err.error?.message || 'The request could not be approved.';
+        req.status = 'rejected';
+        req.rejectionReason = reason;
+        alert(`This request can't be approved and has been rejected: ${reason}`);
+        this.cdr.markForCheck();
       }
-      this.cdr.markForCheck();
     });
   }
 

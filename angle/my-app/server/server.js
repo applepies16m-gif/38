@@ -82,6 +82,97 @@ async function canUseChannel(userId, channelId) {
   return isMember && !isBanned;
 }
 
+// A date of birth further back than this is treated as a mistake.
+const MAX_AGE_YEARS = 120;
+
+// Reads a date of birth written as YYYY-MM-DD and returns its
+// year, month and day as numbers, or null if it isn't a real
+// calendar date. The parts are read straight from the text so the
+// server's time zone can't shift the day.
+function parseDateOfBirth(dateOfBirth) {
+  if (typeof dateOfBirth !== 'string') {
+    return null;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth);
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  // A date that doesn't exist rolls over when built (2023-02-29
+  // becomes 1 March), so if the parts read back differently the
+  // date was never real.
+  const built = new Date(Date.UTC(year, month - 1, day));
+  if (built.getUTCFullYear() !== year || built.getUTCMonth() !== month - 1 || built.getUTCDate() !== day) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+// Returns the age in whole years today, or null if the date of
+// birth is missing, not a real date, in the future, or more than
+// MAX_AGE_YEARS ago.
+function calculateAge(dateOfBirth) {
+  const parts = parseDateOfBirth(dateOfBirth);
+  if (!parts) {
+    return null;
+  }
+  const today = new Date();
+  const thisMonth = today.getMonth() + 1;
+  const birthdayPassed = thisMonth > parts.month ||
+    (thisMonth === parts.month && today.getDate() >= parts.day);
+
+  let age = today.getFullYear() - parts.year;
+  if (!birthdayPassed) {
+    age = age - 1;
+  }
+  if (age < 0 || age > MAX_AGE_YEARS) {
+    return null;
+  }
+  return age;
+}
+
+// Looks up the user and group for a join request. Either comes
+// back null if its id is malformed or nothing matches.
+async function findUserAndGroup(userId, groupId) {
+  const isId = value => typeof value === 'string' && ObjectId.isValid(value);
+  const user = isId(userId)
+    ? await getDb().collection('users').findOne({ _id: new ObjectId(userId) })
+    : null;
+  const group = isId(groupId)
+    ? await getDb().collection('groups').findOne({ _id: new ObjectId(groupId) })
+    : null;
+  return { user, group };
+}
+
+// Every rule for whether a user may join a group, in one place so
+// submitting a request and approving it can't disagree. Returns
+// null if the user may join, or the HTTP status and reason if not.
+function checkJoinAllowed(user, group) {
+  const groupId = group._id.toString();
+  if (user.isSystemBanned) {
+    return { status: 403, message: 'This account has been banned from the system.' };
+  }
+  if ((user.bannedFromGroupIds || []).includes(groupId)) {
+    return { status: 403, message: 'Banned from this group.' };
+  }
+  if ((user.groupIds || []).includes(groupId)) {
+    return { status: 409, message: 'Already a member of this group.' };
+  }
+  if (group.ageLimit > 0) {
+    const age = calculateAge(user.dateOfBirth);
+    if (age === null) {
+      return { status: 403, message: `This group is for ages ${group.ageLimit}+ and the account has no valid date of birth.` };
+    }
+    if (age < group.ageLimit) {
+      return { status: 403, message: `This group is for ages ${group.ageLimit}+.` };
+    }
+  }
+  return null;
+}
+
 // --- Bootstrap ---
 
 app.get('/api/bootstrap-status', async (req, res) => {
@@ -200,26 +291,71 @@ app.get('/api/join-requests', async (req, res) => {
 });
 
 app.post('/api/join-requests', async (req, res) => {
-  const newRequest = { ...req.body, status: 'pending' };
+  const { userId, groupId } = req.body || {};
+  const { user, group } = await findUserAndGroup(userId, groupId);
+  if (!user || !group) {
+    return res.status(404).json({ message: 'User or group not found.' });
+  }
+
+  const refusal = checkJoinAllowed(user, group);
+  if (refusal) {
+    return res.status(refusal.status).json({ message: refusal.message });
+  }
+
+  // One pending request per user per group. A request that was
+  // rejected earlier doesn't block a new one.
+  const pending = await getDb().collection('joinRequests').findOne({ userId, groupId, status: 'pending' });
+  if (pending) {
+    return res.status(409).json({ message: 'There is already a pending request for this group.' });
+  }
+
+  const newRequest = { userId, groupId, status: 'pending' };
   const result = await getDb().collection('joinRequests').insertOne(newRequest);
   res.status(201).json(toClientShape({ ...newRequest, _id: result.insertedId }));
 });
 
 app.put('/api/join-requests/:id', async (req, res) => {
-  const { status, rejectionReason } = req.body;
-  await getDb().collection('joinRequests').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { status, rejectionReason } }
-  );
+  const { status, rejectionReason } = req.body || {};
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ message: 'Join request not found.' });
+  }
+  const requestId = new ObjectId(req.params.id);
+  const joinRequests = getDb().collection('joinRequests');
 
   if (status === 'approved') {
-    const request = await getDb().collection('joinRequests').findOne({ _id: new ObjectId(req.params.id) });
+    const request = await joinRequests.findOne({ _id: requestId });
+    if (!request) {
+      return res.status(404).json({ message: 'Join request not found.' });
+    }
+
+    // The rules are checked again here, because the user may have
+    // been banned, or the age limit raised, while the request was
+    // waiting. A request that no longer passes is rejected with the
+    // reason, and the admin is told, rather than failing quietly.
+    const { user, group } = await findUserAndGroup(request.userId, request.groupId);
+    const refusal = (!user || !group)
+      ? { message: 'The user or group no longer exists.' }
+      : checkJoinAllowed(user, group);
+    if (refusal) {
+      await joinRequests.updateOne(
+        { _id: requestId },
+        { $set: { status: 'rejected', rejectionReason: refusal.message } }
+      );
+      return res.status(409).json({ message: refusal.message });
+    }
+
+    await joinRequests.updateOne({ _id: requestId }, { $set: { status: 'approved' } });
     await getDb().collection('users').updateOne(
-      { _id: new ObjectId(request.userId) },
+      { _id: user._id },
       { $addToSet: { groupIds: request.groupId } }
     );
+    return res.status(204).send();
   }
 
+  await joinRequests.updateOne(
+    { _id: requestId },
+    { $set: { status, rejectionReason } }
+  );
   res.status(204).send();
 });
 

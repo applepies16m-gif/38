@@ -18,17 +18,18 @@
 
     <div class="panel" *ngFor="let g of filteredGroups">
       <div class="panel-header">{{ g.title }}</div>
-      <div class="panel-body group-row">
+      <div class="panel-body group-row" *ngIf="joinStatus(g) as status">
         <div class="group-info">
           <p class="group-desc">{{ g.description }}</p>
           <span class="group-meta" *ngIf="g.ageLimit > 0">Age limit: {{ g.ageLimit }}+</span>
+          <p class="group-meta" *ngIf="status.reason">{{ status.reason }}</p>
         </div>
         <button
           class="btn btn-primary"
-          [disabled]="alreadyRequested(g.id)"
+          [disabled]="!status.canRequest"
           (click)="requestToJoin(g)"
         >
-          {{ alreadyRequested(g.id) ? 'Requested' : 'Request to Join' }}
+          {{ status.label }}
         </button>
       </div>
     </div>
