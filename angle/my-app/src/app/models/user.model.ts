@@ -5,6 +5,7 @@ export interface User {
   displayName: string;
   email: string;
   dateOfBirth?: string;    // ISO date string, e.g. "1971-01-01"
+  profilePicUrl?: string;  // path from the upload endpoint, e.g. "/uploads/3f9a...c2.png"
   role: 'super_admin' | 'group_admin' | 'user';
   online: boolean;
   groupIds: string[];

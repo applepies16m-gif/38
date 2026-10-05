@@ -18,7 +18,9 @@
         />
         <div>
           <input type="file" accept="image/png, image/jpeg, image/gif" (change)="onPictureSelected($event)" />
-          <p class="helper-text">PNG, JPEG or GIF. Not uploaded to the server yet in Phase 1.</p>
+          <p class="helper-text">PNG, JPEG or GIF, up to 2 MB. Saved as soon as you choose it.</p>
+          <div *ngIf="pictureError" class="password-msg">{{ pictureError }}</div>
+          <div *ngIf="pictureMsg" class="success-text">{{ pictureMsg }}</div>
         </div>
       </div>
     </div>

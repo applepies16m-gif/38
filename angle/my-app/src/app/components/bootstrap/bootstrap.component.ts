@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -24,7 +24,8 @@ export class BootstrapComponent {
   constructor(
     private userService: UserService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private cdr: ChangeDetectorRef
   ) {}
 
   get passwordIsValid(): boolean {
@@ -65,11 +66,12 @@ export class BootstrapComponent {
       error: (err) => {
         // 403 specifically means the server has already seen a real
         // user get created since this page loaded -- e.g. someone
-        // else bootstrapped it a moment ago. Any other error is a
-        // more generic failure.
+        // else bootstrapped it a moment ago. For anything else, show
+        // the server's own reason when it gives one.
         this.errorMsg = err.status === 403
           ? 'Setup has already been completed by someone else.'
-          : 'Something went wrong creating the admin account.';
+          : (err.error?.message || 'Something went wrong creating the admin account.');
+        this.cdr.markForCheck();
       }
     });
   }

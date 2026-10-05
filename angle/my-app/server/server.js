@@ -108,7 +108,7 @@ const USER_CREATE_FIELDS = ['username', 'password', 'displayName', 'email', 'dat
 // Fields a client may change on an existing user. The admin pages
 // change role and group membership through this same route, so
 // those have to stay on the list.
-const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth'];
+const USER_UPDATE_FIELDS = ['username', 'password', 'displayName', 'role', 'groupIds', 'bannedFromGroupIds', 'dateOfBirth', 'profilePicUrl'];
 
 // Shown when a date of birth fails calculateAge's rules.
 const INVALID_DATE_OF_BIRTH_MESSAGE = 'Date of birth must be a real date, not in the future and not more than 120 years ago.';
@@ -241,6 +241,33 @@ function checkJoinAllowed(user, group) {
   return null;
 }
 
+// Returns a username in the one form it is stored and looked up
+// in: no surrounding spaces, all lower case. Using this everywhere
+// is what stops "Bob" being saved and then never matching at login.
+function normaliseUsername(value) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+// True if an account already has this username. When a user is
+// saving their own profile, excludeUserId is their id, so keeping
+// their existing name isn't counted as a clash.
+async function isUsernameTaken(username, excludeUserId) {
+  const existing = await getDb().collection('users').findOne({ username });
+  return existing !== null && existing._id.toString() !== excludeUserId;
+}
+
+// Checks a username for a new or updated account. Returns null if
+// it can be used, or the HTTP status and message if it can't.
+async function checkUsername(username, excludeUserId) {
+  if (!username) {
+    return { status: 400, message: 'A username is required.' };
+  }
+  if (await isUsernameTaken(username, excludeUserId)) {
+    return { status: 409, message: 'That username is already taken.' };
+  }
+  return null;
+}
+
 // --- Bootstrap ---
 
 app.get('/api/bootstrap-status', async (req, res) => {
@@ -254,9 +281,15 @@ app.post('/api/bootstrap', async (req, res) => {
     return res.status(403).json({ message: 'Bootstrap already completed.' });
   }
 
+  const username = normaliseUsername((req.body || {}).username);
+  const usernameProblem = await checkUsername(username);
+  if (usernameProblem) {
+    return res.status(usernameProblem.status).json({ message: usernameProblem.message });
+  }
+
   const newSuperAdmin = {
     ...req.body,
-    username: (req.body.username || '').toLowerCase(),
+    username,
     role: 'super_admin'
   };
   const result = await getDb().collection('users').insertOne(newSuperAdmin);
@@ -271,9 +304,9 @@ app.get('/api/users', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password } = req.body || {};
   const user = await getDb().collection('users').findOne({
-    username: (username || '').toLowerCase()
+    username: normaliseUsername(username)
   });
 
   if (!user || user.password !== password) {
@@ -297,11 +330,17 @@ app.post('/api/users', async (req, res) => {
     return res.status(400).json({ message: INVALID_DATE_OF_BIRTH_MESSAGE });
   }
 
+  const username = normaliseUsername(body.username);
+  const usernameProblem = await checkUsername(username);
+  if (usernameProblem) {
+    return res.status(usernameProblem.status).json({ message: usernameProblem.message });
+  }
+
   // Only the whitelisted fields are kept. Every new account starts
   // as a plain user in no groups, whatever the client sent.
   const newUser = {
     ...fields,
-    username: (body.username || '').toLowerCase(),
+    username,
     role: 'user',
     online: false,
     groupIds: [],
@@ -324,6 +363,16 @@ app.put('/api/users/:id', async (req, res) => {
     return res.status(400).json({ message: 'No valid fields to update.' });
   }
 
+  // A changed username is stored in the same lower-case form login
+  // looks it up in, and must not belong to another account.
+  if (updates.username !== undefined) {
+    updates.username = normaliseUsername(updates.username);
+    const usernameProblem = await checkUsername(updates.username, req.params.id);
+    if (usernameProblem) {
+      return res.status(usernameProblem.status).json({ message: usernameProblem.message });
+    }
+  }
+
   // A date of birth can be set once. It is accepted only if the
   // new value is valid and the account doesn't already hold a
   // valid one, so a user can't change their age to get past a
@@ -343,10 +392,31 @@ app.put('/api/users/:id', async (req, res) => {
     }
   }
 
+  // A profile picture must be a path this server handed out from
+  // /api/upload, never an outside address. The picture it replaces
+  // is remembered so its file can be deleted once the new one is
+  // saved.
+  let oldProfilePicUrl = null;
+  if (updates.profilePicUrl !== undefined) {
+    if (!isUploadedImageUrl(updates.profilePicUrl)) {
+      return res.status(400).json({ message: 'A profile picture must be an image uploaded through the app.' });
+    }
+    const existing = ObjectId.isValid(req.params.id)
+      ? await getDb().collection('users').findOne({ _id: new ObjectId(req.params.id) })
+      : null;
+    if (!existing) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    oldProfilePicUrl = existing.profilePicUrl;
+  }
+
   await getDb().collection('users').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: updates }
   );
+  if (oldProfilePicUrl && oldProfilePicUrl !== updates.profilePicUrl) {
+    deleteUploadedImage(oldProfilePicUrl);
+  }
   res.status(204).send();
 });
 
